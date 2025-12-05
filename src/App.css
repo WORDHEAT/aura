@@ -1,0 +1,46 @@
+/* Aura App Styles */
+
+/* Global Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333333;
+  border-radius: 5px;
+  border: 2px solid #191919; /* Creates padding effect */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4a4a4a;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Specific class for containers that need always-visible or specific scrolling behavior */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #202020; /* Match container bg */
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #404040;
+  border-radius: 4px;
+  border: 2px solid #202020;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #505050;
+}
