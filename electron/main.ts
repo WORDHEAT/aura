@@ -1,7 +1,12 @@
 import { app, BrowserWindow, Menu, dialog } from 'electron'
 import path from 'path'
+import { fileURLToPath } from 'url'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
+
+// ES Module fix for __dirname
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Configure logging
 log.transports.file.level = 'info'
