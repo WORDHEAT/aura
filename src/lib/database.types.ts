@@ -145,6 +145,35 @@ export interface Database {
           updated_at?: string
         }
       }
+      workspace_share_links: {
+        Row: {
+          id: string
+          workspace_id: string
+          token: string
+          created_by: string
+          expires_at: string | null
+          is_active: boolean
+          allow_edit: boolean
+          created_at: string
+          last_used_at: string | null
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          token: string
+          created_by: string
+          expires_at?: string | null
+          is_active?: boolean
+          allow_edit?: boolean
+          created_at?: string
+          last_used_at?: string | null
+        }
+        Update: {
+          is_active?: boolean
+          allow_edit?: boolean
+          last_used_at?: string | null
+        }
+      }
     }
     Views: {
       [_ in never]: never

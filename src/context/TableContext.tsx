@@ -265,28 +265,6 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
     }, [isAuthenticated, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Debounced sync for changes
-    const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    
-    const debouncedSync = useCallback(async (
-        action: () => Promise<void>,
-        delay: number = 1000
-    ) => {
-        if (!isAuthenticated) return
-        
-        if (syncTimeoutRef.current) {
-            clearTimeout(syncTimeoutRef.current)
-        }
-        
-        syncTimeoutRef.current = setTimeout(async () => {
-            try {
-                await action()
-            } catch (error) {
-                console.error('Sync error:', error)
-            }
-        }, delay)
-    }, [isAuthenticated])
-
     // Save to localStorage
     useEffect(() => {
         localStorage.setItem('aura-workspaces', JSON.stringify(workspaces))
