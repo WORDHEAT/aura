@@ -265,6 +265,103 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
     }, [isAuthenticated, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Track previous workspaces for change detection
+    const prevWorkspacesRef = useRef<string>('')
+    const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const isInitialLoadRef = useRef(true)
+
+    // Push changes to cloud (debounced)
+    const pushToCloud = useCallback(async (workspacesToPush: Workspace[]) => {
+        if (!isAuthenticated || !user) return
+        
+        try {
+            // Get existing cloud workspace IDs
+            const cloudWorkspaces = await syncService.fetchWorkspaces()
+            const cloudWorkspaceIds = new Set(cloudWorkspaces.map(ws => ws.id))
+            const localWorkspaceIds = new Set(workspacesToPush.map(ws => ws.id))
+
+            // Create or update workspaces
+            for (const workspace of workspacesToPush) {
+                if (!cloudWorkspaceIds.has(workspace.id)) {
+                    // New workspace - create it
+                    await syncService.createWorkspace(workspace)
+                    // Create tables
+                    for (let i = 0; i < workspace.tables.length; i++) {
+                        await syncService.createTable(workspace.id, workspace.tables[i], i)
+                    }
+                    // Create notes
+                    for (let i = 0; i < workspace.notes.length; i++) {
+                        await syncService.createNote(workspace.id, workspace.notes[i], i)
+                    }
+                } else {
+                    // Existing workspace - update it
+                    await syncService.updateWorkspace(workspace)
+                    // Update tables
+                    for (const table of workspace.tables) {
+                        try {
+                            await syncService.updateTable(table)
+                        } catch {
+                            // Table might not exist, create it
+                            await syncService.createTable(workspace.id, table, workspace.tables.indexOf(table))
+                        }
+                    }
+                    // Update notes
+                    for (const note of workspace.notes) {
+                        try {
+                            await syncService.updateNote(note)
+                        } catch {
+                            // Note might not exist, create it
+                            await syncService.createNote(workspace.id, note, workspace.notes.indexOf(note))
+                        }
+                    }
+                }
+            }
+
+            // Delete removed workspaces
+            for (const cloudWs of cloudWorkspaces) {
+                if (!localWorkspaceIds.has(cloudWs.id)) {
+                    await syncService.deleteWorkspace(cloudWs.id)
+                }
+            }
+
+            console.log('✅ Synced to cloud')
+        } catch (error) {
+            console.error('Push to cloud error:', error)
+        }
+    }, [isAuthenticated, user])
+
+    // Auto-push changes to cloud (debounced)
+    useEffect(() => {
+        // Skip initial load
+        if (isInitialLoadRef.current) {
+            isInitialLoadRef.current = false
+            prevWorkspacesRef.current = JSON.stringify(workspaces)
+            return
+        }
+
+        // Check if workspaces actually changed
+        const currentWorkspacesJson = JSON.stringify(workspaces)
+        if (currentWorkspacesJson === prevWorkspacesRef.current) {
+            return
+        }
+        prevWorkspacesRef.current = currentWorkspacesJson
+
+        // Debounce the sync (wait 2 seconds after last change)
+        if (syncTimeoutRef.current) {
+            clearTimeout(syncTimeoutRef.current)
+        }
+
+        syncTimeoutRef.current = setTimeout(() => {
+            pushToCloud(workspaces)
+        }, 2000)
+
+        return () => {
+            if (syncTimeoutRef.current) {
+                clearTimeout(syncTimeoutRef.current)
+            }
+        }
+    }, [workspaces, pushToCloud])
+
     // Save to localStorage
     useEffect(() => {
         localStorage.setItem('aura-workspaces', JSON.stringify(workspaces))
