@@ -119,6 +119,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         try {
             const { error } = await supabase.auth.signOut()
             if (error) throw error
+            // Clear local storage
+            localStorage.removeItem('aura-workspaces')
+            localStorage.removeItem('aura-current-table-id')
+            // Reload to reset app state
+            window.location.reload()
         } finally {
             setIsLoading(false)
         }
