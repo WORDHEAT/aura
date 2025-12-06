@@ -432,19 +432,32 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             // Create or update workspaces
             for (const workspace of workspacesToPush) {
                 if (!cloudWorkspaceIds.has(workspace.id)) {
-                    // New workspace - create it
-                    await syncService.createWorkspace(workspace)
-                    // Create tables
-                    for (let i = 0; i < workspace.tables.length; i++) {
-                        await syncService.createTable(workspace.id, workspace.tables[i], i)
-                    }
-                    // Create notes
-                    for (let i = 0; i < workspace.notes.length; i++) {
-                        await syncService.createNote(workspace.id, workspace.notes[i], i)
+                    // New workspace - create it first
+                    try {
+                        await syncService.createWorkspace(workspace)
+                        console.log('✅ Created workspace:', workspace.id, workspace.name)
+                        
+                        // Only create tables/notes if workspace creation succeeded
+                        for (let i = 0; i < workspace.tables.length; i++) {
+                            await syncService.createTable(workspace.id, workspace.tables[i], i)
+                        }
+                        for (let i = 0; i < workspace.notes.length; i++) {
+                            await syncService.createNote(workspace.id, workspace.notes[i], i)
+                        }
+                    } catch (createError) {
+                        console.error('❌ Failed to create workspace:', workspace.id, createError)
+                        // Skip this workspace's tables/notes since workspace failed
+                        continue
                     }
                 } else {
                     // Existing workspace - update it
-                    await syncService.updateWorkspace(workspace)
+                    try {
+                        await syncService.updateWorkspace(workspace)
+                    } catch (updateError) {
+                        console.error('❌ Failed to update workspace:', workspace.id, updateError)
+                        // Skip this workspace's tables/notes if update failed
+                        continue
+                    }
                     
                     // Get cloud tables/notes for this workspace to detect deletions
                     const cloudWs = cloudWorkspaces.find(cw => cw.id === workspace.id)
