@@ -241,9 +241,9 @@ export class SyncService {
         }
     }
 
-    // Update a table
+    // Update a table (throws if table doesn't exist to trigger creation)
     async updateTable(table: TableItem): Promise<void> {
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('tables')
             .update({
                 name: table.name,
@@ -252,10 +252,17 @@ export class SyncService {
                 appearance: table.appearance as unknown
             })
             .eq('id', table.id)
+            .select()
 
         if (error) {
             console.error('Error updating table:', error)
             throw error
+        }
+        
+        // If no rows were updated, the table doesn't exist - throw to trigger creation
+        if (!data || data.length === 0) {
+            console.log('📋 Table not found in cloud, will be created')
+            throw new Error('Table not found')
         }
     }
 
@@ -303,19 +310,28 @@ export class SyncService {
         }
     }
 
-    // Update a note
+    // Update a note (throws if note doesn't exist to trigger creation)
     async updateNote(note: NoteItem): Promise<void> {
-        const { error } = await supabase
+        // First try to update
+        const { data, error: updateError } = await supabase
             .from('notes')
             .update({
                 name: note.name,
                 content: note.content
             })
             .eq('id', note.id)
+            .select()
 
-        if (error) {
-            console.error('Error updating note:', error)
-            throw error
+        if (updateError) {
+            console.error('Error updating note:', updateError)
+            throw updateError
+        }
+        
+        // If no rows were updated, the note doesn't exist - need to create it
+        if (!data || data.length === 0) {
+            console.log('📝 Note not found in cloud, will be created on next full sync')
+            // Throw to trigger creation in the calling code
+            throw new Error('Note not found')
         }
     }
 
