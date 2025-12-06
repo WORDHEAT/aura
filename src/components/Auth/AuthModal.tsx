@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Mail, Lock, User, Eye, EyeOff, Loader2, Github, Chrome } from 'lucide-react'
 
 interface AuthModalProps {
@@ -75,7 +76,7 @@ export function AuthModal({ isOpen, onClose, onSignIn, onSignUp, onGoogleSignIn,
         setConfirmPassword('')
     }
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[50000] flex items-center justify-center">
             {/* Backdrop */}
             <div 
@@ -289,6 +290,7 @@ export function AuthModal({ isOpen, onClose, onSignIn, onSignUp, onGoogleSignIn,
                     </p>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     )
 }
