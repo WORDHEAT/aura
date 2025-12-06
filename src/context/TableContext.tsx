@@ -419,7 +419,15 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 } else {
                     // Existing workspace - update it
                     await syncService.updateWorkspace(workspace)
-                    // Update tables
+                    
+                    // Get cloud tables/notes for this workspace to detect deletions
+                    const cloudWs = cloudWorkspaces.find(cw => cw.id === workspace.id)
+                    const cloudTableIds = new Set(cloudWs?.tables.map(t => t.id) || [])
+                    const cloudNoteIds = new Set(cloudWs?.notes.map(n => n.id) || [])
+                    const localTableIds = new Set(workspace.tables.map(t => t.id))
+                    const localNoteIds = new Set(workspace.notes.map(n => n.id))
+                    
+                    // Update or create tables
                     for (const table of workspace.tables) {
                         try {
                             await syncService.updateTable(table)
@@ -428,13 +436,30 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                             await syncService.createTable(workspace.id, table, workspace.tables.indexOf(table))
                         }
                     }
-                    // Update notes
+                    
+                    // Delete removed tables
+                    for (const cloudTableId of cloudTableIds) {
+                        if (!localTableIds.has(cloudTableId)) {
+                            console.log('🗑️ Deleting table from cloud:', cloudTableId)
+                            await syncService.deleteTable(cloudTableId)
+                        }
+                    }
+                    
+                    // Update or create notes
                     for (const note of workspace.notes) {
                         try {
                             await syncService.updateNote(note)
                         } catch {
                             // Note might not exist, create it
                             await syncService.createNote(workspace.id, note, workspace.notes.indexOf(note))
+                        }
+                    }
+                    
+                    // Delete removed notes
+                    for (const cloudNoteId of cloudNoteIds) {
+                        if (!localNoteIds.has(cloudNoteId)) {
+                            console.log('🗑️ Deleting note from cloud:', cloudNoteId)
+                            await syncService.deleteNote(cloudNoteId)
                         }
                     }
                 }
