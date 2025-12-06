@@ -80,7 +80,7 @@ interface TableContextType {
     deleteTable: (workspaceId: string, tableId: string) => void
     renameTable: (tableId: string, name: string) => void
     reorderTablesInWorkspace: (workspaceId: string, tableIds: string[]) => void
-    moveTableToWorkspace: (tableId: string, fromWorkspaceId: string, toWorkspaceId: string) => void
+    moveTableToWorkspace: (tableId: string, fromWorkspaceId: string, toWorkspaceId: string) => Promise<void>
     switchTable: (workspaceId: string, tableId: string) => void
     toggleTableSelection: (tableId: string) => void
     setSelectedTables: (ids: string[]) => void
@@ -105,7 +105,7 @@ interface TableContextType {
     updateNoteSettings: (noteId: string, settings: Partial<Pick<NoteItem, 'isMonospace' | 'wordWrap'>>) => void
     switchNote: (workspaceId: string, noteId: string) => void
     reorderNotesInWorkspace: (workspaceId: string, noteIds: string[]) => void
-    moveNoteToWorkspace: (noteId: string, fromWorkspaceId: string, toWorkspaceId: string) => void
+    moveNoteToWorkspace: (noteId: string, fromWorkspaceId: string, toWorkspaceId: string) => Promise<void>
     // Helpers
     getTableById: (tableId: string) => TableItem | undefined
     getNoteById: (noteId: string) => NoteItem | undefined
@@ -438,49 +438,218 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
     }, [isAuthenticated, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Real-time sync - listen for changes from other devices
+    // Real-time sync - EVENT-BASED approach (like Notion/Google Docs)
+    // Instead of fetching full state, apply individual changes directly
     useEffect(() => {
         if (!isAuthenticated || !user) return
 
-        console.log('📡 Setting up real-time sync listener for user:', user.id)
+        console.log('📡 Setting up event-based real-time sync for user:', user.id)
         
-        // Handler for incoming changes - only ignore our own recent pushes
-        const handleRemoteChange = (table: string) => {
-            // Only ignore if we JUST pushed (within 2 seconds) - likely our own echo
-            const timeSincePush = Date.now() - lastSyncTimeRef.current
-            if (timeSincePush < 2000) {
-                console.log(`📡 Ignoring ${table} change (own echo, ${timeSincePush}ms ago)`)
+        // Check if this is our own echo (within 1 second of our push)
+        const isOwnEcho = () => Date.now() - lastSyncTimeRef.current < 1000
+
+        // Handle NOTE changes - most common operation
+        const handleNoteChange = (payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }) => {
+            if (isOwnEcho()) {
+                console.log('📡 Ignoring own note echo')
                 return
             }
-            console.log(`📡 ${table} changed on another device, syncing...`)
-            syncWorkspaces()
+            
+            const { eventType } = payload
+            console.log(`📡 Note ${eventType} from another device`)
+            
+            if (eventType === 'INSERT' && payload.new) {
+                const n = payload.new
+                const newNote: NoteItem = {
+                    id: n.id as string,
+                    name: n.name as string,
+                    content: n.content as string || '',
+                    createdAt: n.created_at as string,
+                    updatedAt: n.updated_at as string,
+                    isMonospace: n.is_monospace as boolean ?? false,
+                    wordWrap: n.word_wrap as boolean ?? true
+                }
+                const workspaceId = n.workspace_id as string
+                setWorkspaces(prev => prev.map(ws => 
+                    ws.id === workspaceId 
+                        ? { ...ws, notes: [...ws.notes.filter(x => x.id !== newNote.id), newNote] }
+                        : ws
+                ))
+            } else if (eventType === 'UPDATE' && payload.new) {
+                const n = payload.new
+                const updatedNote: NoteItem = {
+                    id: n.id as string,
+                    name: n.name as string,
+                    content: n.content as string || '',
+                    createdAt: n.created_at as string,
+                    updatedAt: n.updated_at as string,
+                    isMonospace: n.is_monospace as boolean ?? false,
+                    wordWrap: n.word_wrap as boolean ?? true
+                }
+                const newWorkspaceId = n.workspace_id as string
+                // Remove from old workspace, add to new (handles moves)
+                setWorkspaces(prev => prev.map(ws => {
+                    // Remove from any workspace that has this note
+                    const filtered = ws.notes.filter(x => x.id !== updatedNote.id)
+                    // Add to target workspace
+                    if (ws.id === newWorkspaceId) {
+                        return { ...ws, notes: [...filtered, updatedNote] }
+                    }
+                    return { ...ws, notes: filtered }
+                }))
+            } else if (eventType === 'DELETE' && payload.old) {
+                const noteId = payload.old.id as string
+                setWorkspaces(prev => prev.map(ws => ({
+                    ...ws,
+                    notes: ws.notes.filter(n => n.id !== noteId)
+                })))
+            }
         }
 
-        // Subscribe to changes on workspaces, tables, and notes
-        // Note: RLS policies filter what we can see, no need for client-side filter
+        // Handle TABLE changes
+        const handleTableChange = (payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }) => {
+            if (isOwnEcho()) {
+                console.log('📡 Ignoring own table echo')
+                return
+            }
+            
+            const { eventType } = payload
+            console.log(`📡 Table ${eventType} from another device`)
+            
+            if (eventType === 'INSERT' && payload.new) {
+                const t = payload.new
+                const newTable: TableItem = {
+                    id: t.id as string,
+                    name: t.name as string,
+                    columns: t.columns as TableItem['columns'] || [],
+                    rows: t.rows as TableItem['rows'] || [],
+                    appearance: t.appearance as TableItem['appearance'],
+                    createdAt: t.created_at as string,
+                    updatedAt: t.updated_at as string
+                }
+                const workspaceId = t.workspace_id as string
+                setWorkspaces(prev => prev.map(ws => 
+                    ws.id === workspaceId 
+                        ? { ...ws, tables: [...ws.tables.filter(x => x.id !== newTable.id), newTable] }
+                        : ws
+                ))
+            } else if (eventType === 'UPDATE' && payload.new) {
+                const t = payload.new
+                const updatedTable: TableItem = {
+                    id: t.id as string,
+                    name: t.name as string,
+                    columns: t.columns as TableItem['columns'] || [],
+                    rows: t.rows as TableItem['rows'] || [],
+                    appearance: t.appearance as TableItem['appearance'],
+                    createdAt: t.created_at as string,
+                    updatedAt: t.updated_at as string
+                }
+                const newWorkspaceId = t.workspace_id as string
+                // Remove from old workspace, add to new (handles moves)
+                setWorkspaces(prev => prev.map(ws => {
+                    const filtered = ws.tables.filter(x => x.id !== updatedTable.id)
+                    if (ws.id === newWorkspaceId) {
+                        return { ...ws, tables: [...filtered, updatedTable] }
+                    }
+                    return { ...ws, tables: filtered }
+                }))
+            } else if (eventType === 'DELETE' && payload.old) {
+                const tableId = payload.old.id as string
+                setWorkspaces(prev => prev.map(ws => ({
+                    ...ws,
+                    tables: ws.tables.filter(t => t.id !== tableId)
+                })))
+            }
+        }
+
+        // Handle WORKSPACE changes
+        const handleWorkspaceChange = (payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }) => {
+            if (isOwnEcho()) {
+                console.log('📡 Ignoring own workspace echo')
+                return
+            }
+            
+            const { eventType } = payload
+            console.log(`📡 Workspace ${eventType} from another device`)
+            
+            if (eventType === 'INSERT' && payload.new) {
+                const w = payload.new
+                const newWorkspace: Workspace = {
+                    id: w.id as string,
+                    name: w.name as string,
+                    createdAt: w.created_at as string,
+                    tables: [],
+                    notes: [],
+                    isExpanded: w.is_expanded as boolean ?? true,
+                    ownerId: w.owner_id as string,
+                    visibility: w.visibility as WorkspaceVisibility ?? 'private',
+                    updatedAt: w.updated_at as string
+                }
+                setWorkspaces(prev => [...prev.filter(ws => ws.id !== newWorkspace.id), newWorkspace])
+            } else if (eventType === 'UPDATE' && payload.new) {
+                const w = payload.new
+                setWorkspaces(prev => prev.map(ws => 
+                    ws.id === w.id 
+                        ? { 
+                            ...ws, 
+                            name: w.name as string,
+                            visibility: w.visibility as WorkspaceVisibility ?? ws.visibility,
+                            updatedAt: w.updated_at as string
+                          }
+                        : ws
+                ))
+            } else if (eventType === 'DELETE' && payload.old) {
+                const workspaceId = payload.old.id as string
+                setWorkspaces(prev => prev.filter(ws => ws.id !== workspaceId))
+            }
+        }
+
+        // Subscribe with specific event handlers
         const channel = supabase
-            .channel('sync-changes')
+            .channel('realtime-sync')
             .on('postgres_changes', 
-                { event: '*', schema: 'public', table: 'workspaces' },
-                () => handleRemoteChange('Workspace')
+                { event: 'INSERT', schema: 'public', table: 'notes' },
+                (payload) => handleNoteChange({ eventType: 'INSERT', new: payload.new, old: null })
             )
-            .on('postgres_changes',
-                { event: '*', schema: 'public', table: 'tables' },
-                () => handleRemoteChange('Table')
+            .on('postgres_changes', 
+                { event: 'UPDATE', schema: 'public', table: 'notes' },
+                (payload) => handleNoteChange({ eventType: 'UPDATE', new: payload.new, old: payload.old })
             )
-            .on('postgres_changes',
-                { event: '*', schema: 'public', table: 'notes' },
-                () => handleRemoteChange('Note')
+            .on('postgres_changes', 
+                { event: 'DELETE', schema: 'public', table: 'notes' },
+                (payload) => handleNoteChange({ eventType: 'DELETE', new: null, old: payload.old })
+            )
+            .on('postgres_changes', 
+                { event: 'INSERT', schema: 'public', table: 'tables' },
+                (payload) => handleTableChange({ eventType: 'INSERT', new: payload.new, old: null })
+            )
+            .on('postgres_changes', 
+                { event: 'UPDATE', schema: 'public', table: 'tables' },
+                (payload) => handleTableChange({ eventType: 'UPDATE', new: payload.new, old: payload.old })
+            )
+            .on('postgres_changes', 
+                { event: 'DELETE', schema: 'public', table: 'tables' },
+                (payload) => handleTableChange({ eventType: 'DELETE', new: null, old: payload.old })
+            )
+            .on('postgres_changes', 
+                { event: 'INSERT', schema: 'public', table: 'workspaces' },
+                (payload) => handleWorkspaceChange({ eventType: 'INSERT', new: payload.new, old: null })
+            )
+            .on('postgres_changes', 
+                { event: 'UPDATE', schema: 'public', table: 'workspaces' },
+                (payload) => handleWorkspaceChange({ eventType: 'UPDATE', new: payload.new, old: payload.old })
+            )
+            .on('postgres_changes', 
+                { event: 'DELETE', schema: 'public', table: 'workspaces' },
+                (payload) => handleWorkspaceChange({ eventType: 'DELETE', new: null, old: payload.old })
             )
             .subscribe((status, err) => {
                 if (status === 'SUBSCRIBED') {
-                    console.log('✅ Real-time sync connected')
+                    console.log('✅ Real-time sync connected (event-based)')
                 } else if (status === 'CHANNEL_ERROR') {
                     console.error('❌ Real-time sync error:', err)
                 } else if (status === 'TIMED_OUT') {
-                    console.warn('⚠️ Real-time sync timed out, retrying...')
-                } else {
-                    console.log('📡 Real-time status:', status)
+                    console.warn('⚠️ Real-time sync timed out')
                 }
             })
 
@@ -987,34 +1156,44 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }))
     }
 
-    const moveTableToWorkspace = (tableId: string, fromWorkspaceId: string, toWorkspaceId: string) => {
+    const moveTableToWorkspace = async (tableId: string, fromWorkspaceId: string, toWorkspaceId: string) => {
         if (fromWorkspaceId === toWorkspaceId) return
 
-        // Use functional update to avoid stale closure issues
+        // 1. Optimistic update - update local state immediately
         setWorkspacesWithHistory(prev => {
             const fromWorkspace = prev.find(ws => ws.id === fromWorkspaceId)
             const tableToMove = fromWorkspace?.tables.find(t => t.id === tableId)
             if (!tableToMove) {
                 console.warn('moveTableToWorkspace: table not found', tableId)
-                return prev // Return unchanged if table not found
+                return prev
             }
 
             return prev.map(ws => {
                 if (ws.id === fromWorkspaceId) {
-                    // Remove table from source workspace
                     return { ...ws, tables: ws.tables.filter(t => t.id !== tableId) }
                 }
                 if (ws.id === toWorkspaceId) {
-                    // Add table to target workspace
                     return { ...ws, tables: [...ws.tables, tableToMove] }
                 }
                 return ws
             })
         })
 
-        // Update current workspace if the moved table was the current one
+        // Update current workspace if needed
         if (currentTableId === tableId) {
             setCurrentWorkspaceId(toWorkspaceId)
+        }
+
+        // 2. Immediately sync to cloud (no debounce for moves)
+        if (isAuthenticated) {
+            try {
+                await syncService.moveTable(tableId, toWorkspaceId)
+                lastSyncTimeRef.current = Date.now() // Mark as our own change
+                console.log('✅ Table moved and synced:', tableId, '→', toWorkspaceId)
+            } catch (error) {
+                console.error('Failed to sync table move:', error)
+                // Could rollback here, but for now just log
+            }
         }
     }
 
@@ -1251,34 +1430,44 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }))
     }
 
-    const moveNoteToWorkspace = (noteId: string, fromWorkspaceId: string, toWorkspaceId: string) => {
+    const moveNoteToWorkspace = async (noteId: string, fromWorkspaceId: string, toWorkspaceId: string) => {
         if (fromWorkspaceId === toWorkspaceId) return
 
-        // Use functional update to avoid stale closure issues
+        // 1. Optimistic update - update local state immediately
         setWorkspacesWithHistory(prev => {
             const fromWorkspace = prev.find(ws => ws.id === fromWorkspaceId)
             const noteToMove = fromWorkspace?.notes.find(n => n.id === noteId)
             if (!noteToMove) {
                 console.warn('moveNoteToWorkspace: note not found', noteId)
-                return prev // Return unchanged if note not found
+                return prev
             }
 
             return prev.map(ws => {
                 if (ws.id === fromWorkspaceId) {
-                    // Remove note from source workspace
                     return { ...ws, notes: ws.notes.filter(n => n.id !== noteId) }
                 }
                 if (ws.id === toWorkspaceId) {
-                    // Add note to target workspace
                     return { ...ws, notes: [...ws.notes, noteToMove] }
                 }
                 return ws
             })
         })
 
-        // Update current workspace if the moved note was the current one
+        // Update current workspace if needed
         if (currentNoteId === noteId) {
             setCurrentWorkspaceId(toWorkspaceId)
+        }
+
+        // 2. Immediately sync to cloud (no debounce for moves)
+        if (isAuthenticated) {
+            try {
+                await syncService.moveNote(noteId, toWorkspaceId)
+                lastSyncTimeRef.current = Date.now() // Mark as our own change
+                console.log('✅ Note moved and synced:', noteId, '→', toWorkspaceId)
+            } catch (error) {
+                console.error('Failed to sync note move:', error)
+                // Could rollback here, but for now just log
+            }
         }
     }
 
