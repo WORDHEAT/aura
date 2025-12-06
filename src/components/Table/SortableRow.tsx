@@ -257,7 +257,7 @@ export function SortableRow({
                         <div className={`absolute top-1 right-1 z-20 transition-opacity ${
                             activeColorPickerCell?.rowId === row.id && activeColorPickerCell?.colId === col.id
                                 ? 'opacity-100'
-                                : 'opacity-0 group-hover/cell:opacity-100'
+                                : 'sm:opacity-0 sm:group-hover/cell:opacity-100'
                         }`}>
                             <div className="relative group/actions">
                                 {/* Trigger - small dot indicator */}
@@ -313,7 +313,7 @@ export function SortableRow({
                     )}
 
                     {/* Resize Handle in Cell */}
-                    <div className="absolute top-0 bottom-0 right-0 w-0 z-10 opacity-0 group-hover/cell:opacity-100 hover:opacity-100">
+                    <div className="absolute top-0 bottom-0 right-0 w-0 z-10 sm:opacity-0 sm:group-hover/cell:opacity-100 hover:opacity-100">
                         <ResizeHandle 
                             width={col.width || 150} 
                             onResize={(width) => onResizeColumn(col.id, width)} 
