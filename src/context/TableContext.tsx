@@ -348,6 +348,11 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             .on('postgres_changes', 
                 { event: '*', schema: 'public', table: 'workspaces' },
                 () => {
+                    // Ignore if we recently pushed (within 3 seconds) - it's our own change
+                    if (Date.now() - lastSyncTimeRef.current < 3000) {
+                        console.log('📡 Ignoring own workspace change')
+                        return
+                    }
                     console.log('📡 Workspace changed on another device')
                     syncWorkspaces()
                 }
@@ -355,6 +360,11 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'tables' },
                 () => {
+                    // Ignore if we recently pushed (within 3 seconds) - it's our own change
+                    if (Date.now() - lastSyncTimeRef.current < 3000) {
+                        console.log('📡 Ignoring own table change')
+                        return
+                    }
                     console.log('📡 Table changed on another device')
                     syncWorkspaces()
                 }
@@ -362,6 +372,11 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'notes' },
                 () => {
+                    // Ignore if we recently pushed (within 3 seconds) - it's our own change
+                    if (Date.now() - lastSyncTimeRef.current < 3000) {
+                        console.log('📡 Ignoring own note change')
+                        return
+                    }
                     console.log('📡 Note changed on another device')
                     syncWorkspaces()
                 }
@@ -432,6 +447,8 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 }
             }
 
+            // Mark that we just pushed to ignore incoming real-time notifications
+            lastSyncTimeRef.current = Date.now()
             console.log('✅ Synced to cloud')
         } catch (error) {
             console.error('Push to cloud error:', error)
@@ -443,6 +460,12 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         // Skip initial load
         if (isInitialLoadRef.current) {
             isInitialLoadRef.current = false
+            prevWorkspacesRef.current = JSON.stringify(workspaces)
+            return
+        }
+        
+        // Skip if we just synced from cloud (within 2 seconds) to prevent loop
+        if (Date.now() - lastSyncTimeRef.current < 2000) {
             prevWorkspacesRef.current = JSON.stringify(workspaces)
             return
         }
