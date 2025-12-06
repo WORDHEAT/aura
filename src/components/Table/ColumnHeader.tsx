@@ -88,7 +88,7 @@ export function ColumnHeader({ column, onUpdate, onDelete, onDuplicate, cellValu
 
     return (
         <div 
-            className="flex items-center gap-1.5 relative h-full group/header" 
+            className="flex items-center gap-1.5 relative h-full group/header cursor-grab active:cursor-grabbing touch-none" 
             style={{ minWidth: MIN_COLUMN_WIDTH }}
             {...(dragHandleProps ? {
                 ...(dragHandleProps.attributes as React.HTMLAttributes<HTMLDivElement>),
