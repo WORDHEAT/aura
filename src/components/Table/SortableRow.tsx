@@ -124,9 +124,8 @@ export function SortableRow({
                     <div className={`absolute inset-0 pointer-events-none ${row.rowColor}`} />
                 )}
 
-                {/* Mobile: Row number + Drag handle + Menu */}
-                <div className="sm:hidden flex items-center justify-center gap-2 relative z-20">
-                    <span className="text-[#555] text-xs font-medium min-w-[16px]">{index + 1}</span>
+                {/* Mobile: Drag handle + Menu only */}
+                <div className="sm:hidden flex items-center justify-center gap-3 relative z-20">
                     <div className="p-1.5 text-[#6b6b6b] touch-none cursor-grab active:cursor-grabbing" title="Drag to reorder">
                         <GripVertical size={16} />
                     </div>
