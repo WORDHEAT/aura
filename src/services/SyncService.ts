@@ -8,6 +8,7 @@ export interface CloudWorkspace {
     owner_id: string
     visibility: WorkspaceVisibility
     is_expanded: boolean
+    position: number
     created_at: string
     updated_at: string
 }
@@ -67,12 +68,13 @@ const toLocalWorkspace = (
 })
 
 // Convert local workspace to cloud format
-const toCloudWorkspace = (ws: Workspace, ownerId: string): Omit<CloudWorkspace, 'created_at' | 'updated_at'> => ({
+const toCloudWorkspace = (ws: Workspace, ownerId: string, position: number): Omit<CloudWorkspace, 'created_at' | 'updated_at'> => ({
     id: ws.id,
     name: ws.name,
     owner_id: ownerId,
     visibility: ws.visibility || 'private',
-    is_expanded: ws.isExpanded !== false
+    is_expanded: ws.isExpanded !== false,
+    position
 })
 
 export class SyncService {
@@ -91,7 +93,7 @@ export class SyncService {
             .from('workspaces')
             .select('*')
             .eq('owner_id', this.userId)
-            .order('created_at', { ascending: true })
+            .order('position', { ascending: true })
 
         if (ownedError) {
             console.error('Error fetching owned workspaces:', ownedError)
@@ -178,12 +180,12 @@ export class SyncService {
     }
 
     // Create a new workspace
-    async createWorkspace(workspace: Workspace): Promise<void> {
+    async createWorkspace(workspace: Workspace, position: number): Promise<void> {
         if (!this.userId) return
 
         const { error } = await supabase
             .from('workspaces')
-            .insert(toCloudWorkspace(workspace, this.userId))
+            .insert(toCloudWorkspace(workspace, this.userId, position))
 
         if (error) {
             console.error('Error creating workspace:', error)
@@ -192,13 +194,14 @@ export class SyncService {
     }
 
     // Update a workspace
-    async updateWorkspace(workspace: Workspace): Promise<void> {
+    async updateWorkspace(workspace: Workspace, position: number): Promise<void> {
         const { error } = await supabase
             .from('workspaces')
             .update({
                 name: workspace.name,
                 is_expanded: workspace.isExpanded !== false,
-                visibility: workspace.visibility || 'private'
+                visibility: workspace.visibility || 'private',
+                position
             })
             .eq('id', workspace.id)
 
@@ -206,6 +209,21 @@ export class SyncService {
             console.error('Error updating workspace:', error)
             throw error
         }
+    }
+    
+    // Reorder workspaces
+    async reorderWorkspaces(workspaceIds: string[]): Promise<void> {
+        if (!this.userId) return
+        
+        const updates = workspaceIds.map((id, index) => 
+            supabase
+                .from('workspaces')
+                .update({ position: index })
+                .eq('id', id)
+                .eq('owner_id', this.userId)
+        )
+
+        await Promise.all(updates)
     }
 
     // Delete a workspace
@@ -242,14 +260,15 @@ export class SyncService {
     }
 
     // Update a table (throws if table doesn't exist to trigger creation)
-    async updateTable(table: TableItem): Promise<void> {
+    async updateTable(table: TableItem, position: number): Promise<void> {
         const { data, error } = await supabase
             .from('tables')
             .update({
                 name: table.name,
                 columns: table.columns as unknown,
                 rows: table.rows as unknown,
-                appearance: table.appearance as unknown
+                appearance: table.appearance as unknown,
+                position
             })
             .eq('id', table.id)
             .select()
@@ -311,13 +330,14 @@ export class SyncService {
     }
 
     // Update a note (throws if note doesn't exist to trigger creation)
-    async updateNote(note: NoteItem): Promise<void> {
+    async updateNote(note: NoteItem, position: number): Promise<void> {
         // First try to update
         const { data, error: updateError } = await supabase
             .from('notes')
             .update({
                 name: note.name,
-                content: note.content
+                content: note.content,
+                position
             })
             .eq('id', note.id)
             .select()

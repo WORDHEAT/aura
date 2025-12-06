@@ -314,9 +314,10 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             } else {
                 // Cloud is empty - push current local data to cloud
                 console.log('☁️ Cloud is empty, pushing local data...')
-                for (const workspace of currentWorkspaces) {
+                for (let wsIndex = 0; wsIndex < currentWorkspaces.length; wsIndex++) {
+                    const workspace = currentWorkspaces[wsIndex]
                     try {
-                        await syncService.createWorkspace(workspace)
+                        await syncService.createWorkspace(workspace, wsIndex)
                         // Create tables
                         for (let i = 0; i < workspace.tables.length; i++) {
                             await syncService.createTable(workspace.id, workspace.tables[i], i)
@@ -454,11 +455,12 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             const localWorkspaceIds = new Set(workspacesToPush.map(ws => ws.id))
 
             // Create or update workspaces
-            for (const workspace of workspacesToPush) {
+            for (let wsIndex = 0; wsIndex < workspacesToPush.length; wsIndex++) {
+                const workspace = workspacesToPush[wsIndex]
                 if (!cloudWorkspaceIds.has(workspace.id)) {
                     // New workspace - create it first
                     try {
-                        await syncService.createWorkspace(workspace)
+                        await syncService.createWorkspace(workspace, wsIndex)
                         console.log('✅ Created workspace:', workspace.id, workspace.name)
                         
                         // Only create tables/notes if workspace creation succeeded
@@ -474,9 +476,9 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                         continue
                     }
                 } else {
-                    // Existing workspace - update it
+                    // Existing workspace - update it (with position)
                     try {
-                        await syncService.updateWorkspace(workspace)
+                        await syncService.updateWorkspace(workspace, wsIndex)
                     } catch (updateError) {
                         console.error('❌ Failed to update workspace:', workspace.id, updateError)
                         allSucceeded = false
@@ -490,13 +492,14 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     const localTableIds = new Set(workspace.tables.map(t => t.id))
                     const localNoteIds = new Set(workspace.notes.map(n => n.id))
                     
-                    // Update or create tables
-                    for (const table of workspace.tables) {
+                    // Update or create tables (with position for reordering)
+                    for (let tableIdx = 0; tableIdx < workspace.tables.length; tableIdx++) {
+                        const table = workspace.tables[tableIdx]
                         try {
-                            await syncService.updateTable(table)
+                            await syncService.updateTable(table, tableIdx)
                         } catch {
                             // Table might not exist, create it
-                            await syncService.createTable(workspace.id, table, workspace.tables.indexOf(table))
+                            await syncService.createTable(workspace.id, table, tableIdx)
                         }
                     }
                     
@@ -514,13 +517,14 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                         }
                     }
                     
-                    // Update or create notes
-                    for (const note of workspace.notes) {
+                    // Update or create notes (with position for reordering)
+                    for (let noteIdx = 0; noteIdx < workspace.notes.length; noteIdx++) {
+                        const note = workspace.notes[noteIdx]
                         try {
-                            await syncService.updateNote(note)
+                            await syncService.updateNote(note, noteIdx)
                         } catch {
                             // Note might not exist, create it
-                            await syncService.createNote(workspace.id, note, workspace.notes.indexOf(note))
+                            await syncService.createNote(workspace.id, note, noteIdx)
                         }
                     }
                     
