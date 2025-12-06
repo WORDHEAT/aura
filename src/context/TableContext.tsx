@@ -240,29 +240,48 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             const cloudWorkspaces = await syncService.fetchWorkspaces()
             
             if (cloudWorkspaces.length > 0) {
-                // Merge cloud and local data (keep local items that aren't in cloud yet)
-                const mergedWorkspaces = cloudWorkspaces.map(cloudWs => {
-                    const localWs = workspaces.find(ws => ws.id === cloudWs.id)
-                    if (!localWs) return cloudWs
-                    
-                    // Find local tables/notes that aren't in cloud yet
-                    const cloudTableIds = new Set(cloudWs.tables.map(t => t.id))
-                    const cloudNoteIds = new Set(cloudWs.notes.map(n => n.id))
-                    
-                    const localOnlyTables = localWs.tables.filter(t => !cloudTableIds.has(t.id))
-                    const localOnlyNotes = localWs.notes.filter(n => !cloudNoteIds.has(n.id))
-                    
-                    if (localOnlyTables.length > 0 || localOnlyNotes.length > 0) {
-                        console.log(`🔀 Merging ${localOnlyTables.length} local tables and ${localOnlyNotes.length} local notes`)
-                    }
-                    
-                    return {
-                        ...cloudWs,
-                        tables: [...cloudWs.tables, ...localOnlyTables],
-                        notes: [...cloudWs.notes, ...localOnlyNotes],
-                        isExpanded: localWs.isExpanded ?? cloudWs.isExpanded
-                    }
-                })
+                // Merge cloud and local data
+                // IMPORTANT: Only include cloud workspaces that also exist locally
+                // (to respect local deletions after initial sync)
+                const localWsIds = new Set(workspaces.map(ws => ws.id))
+                
+                const mergedWorkspaces = cloudWorkspaces
+                    .filter(cloudWs => {
+                        // On initial sync, include all cloud workspaces
+                        // After initial sync, only include if it exists locally (respect deletions)
+                        if (!initialSyncDoneRef.current) return true
+                        return localWsIds.has(cloudWs.id)
+                    })
+                    .map(cloudWs => {
+                        const localWs = workspaces.find(ws => ws.id === cloudWs.id)
+                        if (!localWs) return cloudWs
+                        
+                        // Find local tables/notes that aren't in cloud yet
+                        const cloudTableIds = new Set(cloudWs.tables.map(t => t.id))
+                        const cloudNoteIds = new Set(cloudWs.notes.map(n => n.id))
+                        
+                        // Also respect local deletions of tables/notes
+                        const localTableIds = new Set(localWs.tables.map(t => t.id))
+                        const localNoteIds = new Set(localWs.notes.map(n => n.id))
+                        
+                        const localOnlyTables = localWs.tables.filter(t => !cloudTableIds.has(t.id))
+                        const localOnlyNotes = localWs.notes.filter(n => !cloudNoteIds.has(n.id))
+                        
+                        // Filter cloud items to only include those that exist locally (respect deletions)
+                        const cloudTablesKept = cloudWs.tables.filter(t => localTableIds.has(t.id))
+                        const cloudNotesKept = cloudWs.notes.filter(n => localNoteIds.has(n.id))
+                        
+                        if (localOnlyTables.length > 0 || localOnlyNotes.length > 0) {
+                            console.log(`🔀 Merging ${localOnlyTables.length} local tables and ${localOnlyNotes.length} local notes`)
+                        }
+                        
+                        return {
+                            ...cloudWs,
+                            tables: [...cloudTablesKept, ...localOnlyTables],
+                            notes: [...cloudNotesKept, ...localOnlyNotes],
+                            isExpanded: localWs.isExpanded ?? cloudWs.isExpanded
+                        }
+                    })
                 
                 // Also add local-only workspaces that don't exist in cloud
                 const cloudWsIds = new Set(cloudWorkspaces.map(ws => ws.id))
