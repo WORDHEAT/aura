@@ -153,7 +153,9 @@ export class SyncService {
             name: t.name,
             columns: t.columns as TableItem['columns'],
             rows: t.rows as TableItem['rows'],
-            appearance: t.appearance as TableItem['appearance']
+            appearance: t.appearance as TableItem['appearance'],
+            createdAt: t.created_at,
+            updatedAt: t.updated_at
         }))
     }
 
