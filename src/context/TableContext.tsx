@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import type { Column, Row } from '../components/Table/Table'
 import { useAuth } from './AuthContext'
 import { syncService } from '../services/SyncService'
+import { supabase } from '../lib/supabase'
 import { updateRowInTree, deleteRowFromTree, addSiblingToTree, addChildToRowInTree } from '../utils/treeUtils'
 
 // A single table within a workspace
@@ -283,6 +284,41 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (isAuthenticated && user) {
             syncWorkspaces()
+        }
+    }, [isAuthenticated, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Real-time sync - listen for changes from other devices
+    useEffect(() => {
+        if (!isAuthenticated || !user) return
+
+        // Subscribe to changes on workspaces, tables, and notes
+        const channel = supabase
+            .channel('sync-changes')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'workspaces' },
+                () => {
+                    console.log('📡 Workspace changed on another device')
+                    syncWorkspaces()
+                }
+            )
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'tables' },
+                () => {
+                    console.log('📡 Table changed on another device')
+                    syncWorkspaces()
+                }
+            )
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'notes' },
+                () => {
+                    console.log('📡 Note changed on another device')
+                    syncWorkspaces()
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
         }
     }, [isAuthenticated, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
