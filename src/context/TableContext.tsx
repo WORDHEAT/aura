@@ -254,8 +254,13 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     // This is the source of truth when starting fresh
                     console.log('📥 Initial sync - loading', cloudWorkspaces.length, 'workspaces from cloud')
                     finalWorkspaces = cloudWorkspaces
+                } else if (!hasPendingChangesRef.current) {
+                    // NO PENDING CHANGES: Take cloud data (it's from another device)
+                    // This is the key fix - when we have no local edits, cloud is truth
+                    console.log('📥 Real-time sync - taking cloud data (no pending local changes)')
+                    finalWorkspaces = cloudWorkspaces
                 } else {
-                    // SUBSEQUENT SYNC: Merge - LOCAL wins for shared items (preserves user edits)
+                    // HAS PENDING CHANGES: Merge carefully - LOCAL wins for items being edited
                     // Only bring in NEW items from cloud, respect local deletions
                     const localWsIds = new Set(currentWorkspaces.map(ws => ws.id))
                     const cloudWsIds = new Set(cloudWorkspaces.map(ws => ws.id))
@@ -298,7 +303,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     const newCloudWorkspaces = cloudWorkspaces.filter(ws => !localWsIds.has(ws.id))
                     
                     finalWorkspaces = [...mergedWorkspaces, ...newCloudWorkspaces]
-                    console.log('🔀 Merged sync - local:', mergedWorkspaces.length, 'new from cloud:', newCloudWorkspaces.length)
+                    console.log('🔀 Merged sync (has pending) - local:', mergedWorkspaces.length, 'new from cloud:', newCloudWorkspaces.length)
                 }
                 
                 setWorkspaces(finalWorkspaces)
