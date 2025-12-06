@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
     owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     visibility workspace_visibility DEFAULT 'private',
     is_expanded BOOLEAN DEFAULT true,
+    position INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
