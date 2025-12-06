@@ -124,31 +124,18 @@ export function SortableRow({
                     <div className={`absolute inset-0 pointer-events-none ${row.rowColor}`} />
                 )}
 
-                {/* Mobile: Visible action buttons */}
-                <div className="sm:hidden flex items-center justify-center gap-0.5 relative z-20">
-                    <div className="p-1 text-[#6b6b6b] touch-none" title="Drag to reorder">
-                        <GripVertical size={14} />
+                {/* Mobile: Row number + Drag handle + Menu */}
+                <div className="sm:hidden flex items-center justify-center gap-2 relative z-20">
+                    <span className="text-[#555] text-xs font-medium min-w-[16px]">{index + 1}</span>
+                    <div className="p-1.5 text-[#6b6b6b] touch-none cursor-grab active:cursor-grabbing" title="Drag to reorder">
+                        <GripVertical size={16} />
                     </div>
                     <button
-                        onClick={(e) => { e.stopPropagation(); onAddSiblingRow(row.id) }}
-                        className="text-[#6b6b6b] active:text-blue-400 p-1 rounded"
-                        title="Add row below"
-                    >
-                        <Plus size={14} />
-                    </button>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onAddSubRow(row.id) }}
-                        className="text-[#6b6b6b] active:text-blue-400 p-1 rounded"
-                        title="Add sub-row"
-                    >
-                        <CornerDownRight size={14} />
-                    </button>
-                    <button
                         onClick={(e) => onActionMenuClick(e, row.id)}
-                        className={`p-1 rounded ${activeActionMenu === row.id ? 'text-[#e3e3e3] bg-[#333]' : 'text-[#6b6b6b]'}`}
+                        className={`p-1.5 rounded ${activeActionMenu === row.id ? 'text-[#e3e3e3] bg-[#333]' : 'text-[#6b6b6b]'}`}
                         title="Row actions"
                     >
-                        <MoreHorizontal size={14} />
+                        <MoreHorizontal size={16} />
                     </button>
                 </div>
                 
@@ -218,6 +205,30 @@ export function SortableRow({
                                             />
                                         ))}
                                     </div>
+                                    
+                                    <div className="h-px bg-[#373737] my-1" />
+                                    
+                                    {/* Add Row Actions */}
+                                    <button
+                                        onClick={() => {
+                                            onAddSiblingRow(row.id)
+                                            setActiveActionMenu(null)
+                                        }}
+                                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#2a2a2a] w-full text-left transition-colors text-[#e3e3e3]"
+                                    >
+                                        <Plus size={14} className="text-blue-400" />
+                                        <span className="text-sm">Add Row Below</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            onAddSubRow(row.id)
+                                            setActiveActionMenu(null)
+                                        }}
+                                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#2a2a2a] w-full text-left transition-colors text-[#e3e3e3]"
+                                    >
+                                        <CornerDownRight size={14} className="text-blue-400" />
+                                        <span className="text-sm">Add Sub-Row</span>
+                                    </button>
                                     
                                     <div className="h-px bg-[#373737] my-1" />
                                     
