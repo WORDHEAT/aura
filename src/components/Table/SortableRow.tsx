@@ -65,12 +65,26 @@ export function SortableRow({
 }: SortableRowProps) {
     const { settings } = useSettings()
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+    const [activeCellMenu, setActiveCellMenu] = useState<string | null>(null)
 
     useEffect(() => {
         if (activeActionMenu !== row.id && showDeleteConfirm) {
             setShowDeleteConfirm(false)
         }
     }, [activeActionMenu, row.id, showDeleteConfirm])
+
+    // Close cell menu when clicking outside
+    useEffect(() => {
+        if (!activeCellMenu) return
+        const handleClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement
+            if (!target.closest('.cell-action-menu')) {
+                setActiveCellMenu(null)
+            }
+        }
+        document.addEventListener('click', handleClick)
+        return () => document.removeEventListener('click', handleClick)
+    }, [activeCellMenu])
 
     const {
         attributes,
@@ -110,11 +124,11 @@ export function SortableRow({
                     <div className={`absolute inset-0 pointer-events-none ${row.rowColor}`} />
                 )}
                 
-                {/* Action Buttons Overlay */}
+                {/* Action Buttons Overlay - always visible on mobile */}
                 <div className={`absolute inset-0 z-20 flex items-center justify-center gap-0.5 bg-[#202020] transition-opacity duration-200 ${
                     activeActionMenu === row.id
                         ? 'opacity-100 pointer-events-auto' 
-                        : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
+                        : 'sm:opacity-0 sm:pointer-events-none sm:group-hover:opacity-100 sm:group-hover:pointer-events-auto'
                 }`}>
                     <button
                         onClick={(e) => { e.stopPropagation(); onAddSiblingRow(row.id) }}
@@ -252,62 +266,88 @@ export function SortableRow({
                         </div>
                     </div>
                     
-                    {/* Cell Actions - Single compact button that expands */}
+                    {/* Cell Actions - Click to expand on mobile */}
                     {col.type !== 'checkbox' && (
-                        <div className={`absolute top-1 right-1 z-20 transition-opacity ${
-                            activeColorPickerCell?.rowId === row.id && activeColorPickerCell?.colId === col.id
+                        <div className={`cell-action-menu absolute top-1 right-1 z-20 transition-opacity ${
+                            activeColorPickerCell?.rowId === row.id && activeColorPickerCell?.colId === col.id || activeCellMenu === `${row.id}-${col.id}`
                                 ? 'opacity-100'
                                 : 'sm:opacity-0 sm:group-hover/cell:opacity-100'
                         }`}>
-                            <div className="relative group/actions">
-                                {/* Trigger - small dot indicator */}
-                                <div className="w-5 h-5 rounded bg-[#2a2a2a]/80 flex items-center justify-center cursor-pointer hover:bg-[#333] transition-colors shadow-sm border border-[#373737]">
-                                    <MoreHorizontal size={12} className="text-[#6b6b6b]" />
-                                </div>
+                            <div className="relative">
+                                {/* Trigger button */}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        setActiveCellMenu(activeCellMenu === `${row.id}-${col.id}` ? null : `${row.id}-${col.id}`)
+                                    }}
+                                    className="w-6 h-6 rounded bg-[#2a2a2a]/90 flex items-center justify-center hover:bg-[#333] transition-colors shadow-sm border border-[#373737]"
+                                >
+                                    <MoreHorizontal size={14} className="text-[#6b6b6b]" />
+                                </button>
                                 
-                                {/* Expandable actions menu */}
-                                <div className="absolute top-0 right-0 hidden group-hover/actions:flex items-center gap-1 bg-[#252525] rounded-lg p-1 shadow-lg border border-[#373737] animate-in fade-in zoom-in-95 duration-100">
-                                    {/* Paste Button */}
-                                    <button
-                                        onClick={() => onPasteCell(row.id, col.id)}
-                                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#333] transition-colors"
-                                        title="Paste"
-                                    >
-                                        {pastedCell?.rowId === row.id && pastedCell?.colId === col.id ? (
-                                            <Check size={14} className="text-green-400" />
-                                        ) : (
-                                            <Clipboard size={14} />
-                                        )}
-                                    </button>
-
-                                    {/* Copy Button */}
-                                    {row.cells[col.id] && (
+                                {/* Actions menu - shown on click */}
+                                {activeCellMenu === `${row.id}-${col.id}` && (
+                                    <div className="absolute top-0 right-0 flex items-center gap-1 bg-[#252525] rounded-lg p-1 shadow-lg border border-[#373737] animate-in fade-in zoom-in-95 duration-100">
+                                        {/* Paste Button */}
                                         <button
-                                            onClick={() => onCopyCell(row.cells[col.id], row.id, col.id)}
-                                            className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#333] transition-colors"
-                                            title="Copy"
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                onPasteCell(row.id, col.id)
+                                            }}
+                                            className="p-2 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#333] transition-colors"
+                                            title="Paste"
                                         >
-                                            {copiedCell?.rowId === row.id && copiedCell?.colId === col.id ? (
-                                                <Check size={14} className="text-green-400" />
+                                            {pastedCell?.rowId === row.id && pastedCell?.colId === col.id ? (
+                                                <Check size={16} className="text-green-400" />
                                             ) : (
-                                                <Copy size={14} />
+                                                <Clipboard size={16} />
                                             )}
                                         </button>
-                                    )}
-                                    
-                                    {/* Color Picker */}
-                                    <ColorPicker
-                                        currentColor={row.colors?.[col.id]}
-                                        onColorChange={(color: string) => onUpdateCellColor(row.id, col.id, color)}
-                                        onOpenChange={(isOpen: boolean) => {
-                                            if (isOpen) {
-                                                setActiveColorPickerCell({ rowId: row.id, colId: col.id })
-                                            } else {
-                                                setActiveColorPickerCell(null)
-                                            }
-                                        }}
-                                    />
-                                </div>
+
+                                        {/* Copy Button */}
+                                        {row.cells[col.id] && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    onCopyCell(row.cells[col.id], row.id, col.id)
+                                                }}
+                                                className="p-2 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#333] transition-colors"
+                                                title="Copy"
+                                            >
+                                                {copiedCell?.rowId === row.id && copiedCell?.colId === col.id ? (
+                                                    <Check size={16} className="text-green-400" />
+                                                ) : (
+                                                    <Copy size={16} />
+                                                )}
+                                            </button>
+                                        )}
+                                        
+                                        {/* Color Picker */}
+                                        <ColorPicker
+                                            currentColor={row.colors?.[col.id]}
+                                            onColorChange={(color: string) => onUpdateCellColor(row.id, col.id, color)}
+                                            onOpenChange={(isOpen: boolean) => {
+                                                if (isOpen) {
+                                                    setActiveColorPickerCell({ rowId: row.id, colId: col.id })
+                                                } else {
+                                                    setActiveColorPickerCell(null)
+                                                }
+                                            }}
+                                        />
+                                        
+                                        {/* Close button */}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                setActiveCellMenu(null)
+                                            }}
+                                            className="p-2 rounded text-[#6b6b6b] hover:text-red-400 hover:bg-[#333] transition-colors"
+                                            title="Close"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

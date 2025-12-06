@@ -121,7 +121,7 @@ function App() {
             </h1>
             <p className="text-[#9b9b9b] text-xs sm:text-sm mt-0.5 hidden sm:block">Your tables, your time.</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <div className="flex bg-[#2a2a2a] p-1 rounded-lg border border-[#373737]">
               <button
                 onClick={() => setViewMode('single')}
@@ -139,8 +139,8 @@ function App() {
               </button>
             </div>
             {/* Undo/Redo */}
-            <div className="w-px h-6 bg-[#373737] mx-1" />
-            <div className="flex items-center gap-0.5">
+            <div className="hidden sm:block w-px h-6 bg-[#373737] mx-1" />
+            <div className="flex items-center">
               <button
                 onClick={undo}
                 disabled={!canUndo}
@@ -166,14 +166,13 @@ function App() {
                 <Redo2 size={18} />
               </button>
             </div>
-            <div className="w-px h-6 bg-[#373737] mx-1" />
+            <div className="hidden sm:block w-px h-6 bg-[#373737] mx-1" />
             <button
               onClick={() => setIsCalendarOpen(true)}
-              className="p-2 rounded-lg text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors flex items-center gap-1.5"
+              className="p-1.5 sm:p-2 rounded-lg text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
               title="Calendar"
             >
               <Calendar size={18} />
-              <span className="hidden sm:inline text-xs">Calendar</span>
             </button>
             <div className="hidden sm:flex items-center">
               <div className="w-px h-6 bg-[#373737] mx-1" />
@@ -182,7 +181,7 @@ function App() {
                 onImport={(data) => updateTable(data)}
               />
             </div>
-            <div className="w-px h-6 bg-[#373737] mx-1" />
+            <div className="hidden sm:block w-px h-6 bg-[#373737] mx-1" />
             <UserMenu 
               onOpenSettings={() => setIsSettingsOpen(true)} 
               onOpenAuth={() => setIsAuthModalOpen(true)} 
