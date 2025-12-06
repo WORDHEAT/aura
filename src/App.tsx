@@ -8,8 +8,9 @@ import { NotificationService } from './services/NotificationService'
 import { useTableContext } from './context/TableContext'
 import { useAuth } from './context/AuthContext'
 import type { Row } from './components/Table/Table'
-import { LayoutList, LayoutTemplate, Settings, Undo2, Redo2, Plus, FolderPlus, FileText, Table2, Clock, Sparkles } from 'lucide-react'
+import { LayoutList, LayoutTemplate, Settings, Undo2, Redo2, Plus, FolderPlus, FileText, Table2, Clock, Sparkles, Menu, X, Calendar } from 'lucide-react'
 import { SettingsModal } from './components/SettingsModal'
+import { CalendarView } from './components/CalendarView'
 import { useSettings } from './context/SettingsContext'
 import { AuthModal, UserMenu } from './components/Auth'
 
@@ -24,6 +25,8 @@ function App() {
   const [viewMode, setViewMode] = useState<'single' | 'all'>(settings.defaultView)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false)
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false)
 
   // Handle notification settings and restore
   useEffect(() => {
@@ -102,12 +105,21 @@ function App() {
     <div className="min-h-screen bg-[#191919] text-[#e3e3e3]">
       {/* Header */}
       <header className="sticky top-0 z-[100] bg-[#191919]/95 backdrop-blur-sm border-b border-[#373737] px-4 sm:px-6 py-3 sm:py-4">
-        <div className="max-w-[1600px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
+        <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-3">
+          {/* Mobile menu button */}
+          <button
+            onClick={() => setIsMobileDrawerOpen(true)}
+            className="lg:hidden p-2 -ml-2 text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] rounded-lg transition-colors"
+            title="Open menu"
+          >
+            <Menu size={22} />
+          </button>
+          
+          <div className="flex-1 lg:flex-none">
             <h1 className="text-xl sm:text-2xl font-semibold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
               Aura
             </h1>
-            <p className="text-[#9b9b9b] text-xs sm:text-sm mt-0.5">Your tables, your time.</p>
+            <p className="text-[#9b9b9b] text-xs sm:text-sm mt-0.5 hidden sm:block">Your tables, your time.</p>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex bg-[#2a2a2a] p-1 rounded-lg border border-[#373737]">
@@ -153,6 +165,14 @@ function App() {
                 <Redo2 size={18} />
               </button>
             </div>
+            <div className="w-px h-6 bg-[#373737] mx-1" />
+            <button
+              onClick={() => setIsCalendarOpen(true)}
+              className="p-2 rounded-lg text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+              title="Calendar"
+            >
+              <Calendar size={18} />
+            </button>
             <div className="hidden sm:flex items-center">
               <div className="w-px h-6 bg-[#373737] mx-1" />
               <ExportImport
@@ -169,12 +189,38 @@ function App() {
         </div>
       </header>
 
+      {/* Mobile Drawer */}
+      {isMobileDrawerOpen && (
+        <div className="lg:hidden fixed inset-0 z-[150]">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setIsMobileDrawerOpen(false)}
+          />
+          {/* Drawer */}
+          <div className="absolute left-0 top-0 bottom-0 w-[300px] bg-[#191919] border-r border-[#373737] shadow-2xl animate-in slide-in-from-left duration-300">
+            <div className="flex items-center justify-between p-4 border-b border-[#373737]">
+              <h2 className="font-semibold text-[#e3e3e3]">Workspaces</h2>
+              <button
+                onClick={() => setIsMobileDrawerOpen(false)}
+                className="p-2 text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 h-[calc(100%-60px)] overflow-y-auto">
+              <TableSwitcher isCollapsed={false} setIsCollapsed={() => {}} onItemSelect={() => setIsMobileDrawerOpen(false)} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        {/* Mobile: Stack layout, Desktop: Grid layout */}
-        <div className={`flex flex-col lg:grid gap-4 transition-all duration-300 ${isSidebarCollapsed ? 'lg:grid-cols-[60px_1fr]' : 'lg:grid-cols-[280px_1fr]'}`}>
-          {/* Sidebar */}
-          <aside className="lg:sticky lg:top-[88px]">
+        {/* Desktop: Grid layout with sidebar */}
+        <div className={`lg:grid gap-4 transition-all duration-300 ${isSidebarCollapsed ? 'lg:grid-cols-[60px_1fr]' : 'lg:grid-cols-[280px_1fr]'}`}>
+          {/* Sidebar - hidden on mobile, shown on desktop */}
+          <aside className="hidden lg:block lg:sticky lg:top-[88px]">
             <TableSwitcher isCollapsed={isSidebarCollapsed} setIsCollapsed={setIsSidebarCollapsed} />
           </aside>
 
@@ -421,6 +467,11 @@ function App() {
         onSignUp={signUp}
         onGoogleSignIn={signInWithGoogle}
         onGithubSignIn={signInWithGithub}
+      />
+
+      <CalendarView
+        isOpen={isCalendarOpen}
+        onClose={() => setIsCalendarOpen(false)}
       />
     </div>
   )
