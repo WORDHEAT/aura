@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, X, Calendar, Clock } from 'lucide-react'
 import { useTableContext } from '../context/TableContext'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, addMonths, subMonths, parseISO } from 'date-fns'
@@ -89,7 +90,7 @@ export function CalendarView({ isOpen, onClose }: CalendarViewProps) {
 
     if (!isOpen) return null
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[50000] flex items-center justify-center p-4">
             {/* Backdrop */}
             <div 
@@ -272,6 +273,7 @@ export function CalendarView({ isOpen, onClose }: CalendarViewProps) {
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     )
 }
