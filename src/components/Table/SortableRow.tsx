@@ -122,28 +122,35 @@ export function SortableRow({
                     <div className={`absolute inset-0 pointer-events-none ${row.rowColor}`} />
                 )}
 
-                {/* Mobile: Drag handle + Menu button */}
-                <div className="sm:hidden flex items-center justify-center gap-1 relative z-20">
+                {/* Mobile: Drag handle + action buttons */}
+                <div className="sm:hidden flex items-center justify-center gap-0.5 relative z-20">
                     <div
                         {...attributes}
                         {...listeners}
-                        className="p-1.5 text-[#6b6b6b] cursor-grab active:cursor-grabbing touch-none"
+                        className="p-1 text-[#6b6b6b] cursor-grab active:cursor-grabbing touch-none"
                         title="Drag to reorder"
                     >
-                        <GripVertical size={16} />
+                        <GripVertical size={14} />
                     </div>
                     <button
+                        onClick={(e) => { e.stopPropagation(); onAddSiblingRow(row.id) }}
+                        className="text-[#6b6b6b] hover:text-blue-400 p-1 rounded"
+                        title="Add row below"
+                    >
+                        <Plus size={14} />
+                    </button>
+                    <button
                         onClick={(e) => onActionMenuClick(e, row.id)}
-                        className={`p-1.5 rounded ${activeActionMenu === row.id ? 'text-[#e3e3e3] bg-[#333]' : 'text-[#6b6b6b]'}`}
+                        className={`p-1 rounded ${activeActionMenu === row.id ? 'text-[#e3e3e3] bg-[#333]' : 'text-[#6b6b6b]'}`}
                         title="Row actions"
                     >
-                        <MoreHorizontal size={16} />
+                        <MoreHorizontal size={14} />
                     </button>
                 </div>
                 
-                {/* Desktop: Drag entire cell + hover action buttons */}
+                {/* Desktop: Entire cell is draggable, action buttons show on hover */}
                 <div 
-                    className="hidden sm:block absolute inset-0 cursor-grab active:cursor-grabbing"
+                    className="hidden sm:block absolute inset-0 cursor-grab active:cursor-grabbing z-10"
                     {...attributes}
                     {...listeners}
                 />
