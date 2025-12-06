@@ -392,64 +392,50 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (!isAuthenticated || !user) return
 
+        console.log('📡 Setting up real-time sync listener for user:', user.id)
+        
+        // Handler for incoming changes - only ignore our own recent pushes
+        const handleRemoteChange = (table: string) => {
+            // Only ignore if we JUST pushed (within 2 seconds) - likely our own echo
+            const timeSincePush = Date.now() - lastSyncTimeRef.current
+            if (timeSincePush < 2000) {
+                console.log(`📡 Ignoring ${table} change (own echo, ${timeSincePush}ms ago)`)
+                return
+            }
+            console.log(`📡 ${table} changed on another device, syncing...`)
+            syncWorkspaces()
+        }
+
         // Subscribe to changes on workspaces, tables, and notes
-        // Filter by owner_id to only receive relevant changes (reduces unnecessary syncs)
+        // Note: RLS policies filter what we can see, no need for client-side filter
         const channel = supabase
             .channel('sync-changes')
             .on('postgres_changes', 
-                { event: '*', schema: 'public', table: 'workspaces', filter: `owner_id=eq.${user.id}` },
-                () => {
-                    // Ignore if we recently pushed (within 3 seconds) - it's our own change
-                    if (Date.now() - lastSyncTimeRef.current < 3000) {
-                        console.log('📡 Ignoring own workspace change')
-                        return
-                    }
-                    // Also skip if we have pending local changes
-                    if (hasPendingChangesRef.current) {
-                        console.log('📡 Skipping sync - have pending local changes')
-                        return
-                    }
-                    console.log('📡 Workspace changed on another device')
-                    syncWorkspaces()
-                }
+                { event: '*', schema: 'public', table: 'workspaces' },
+                () => handleRemoteChange('Workspace')
             )
             .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'tables' },
-                () => {
-                    // Ignore if we recently pushed (within 3 seconds) - it's our own change
-                    if (Date.now() - lastSyncTimeRef.current < 3000) {
-                        console.log('📡 Ignoring own table change')
-                        return
-                    }
-                    // Also skip if we have pending local changes
-                    if (hasPendingChangesRef.current) {
-                        console.log('📡 Skipping sync - have pending local changes')
-                        return
-                    }
-                    console.log('📡 Table changed on another device')
-                    syncWorkspaces()
-                }
+                () => handleRemoteChange('Table')
             )
             .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'notes' },
-                () => {
-                    // Ignore if we recently pushed (within 3 seconds) - it's our own change
-                    if (Date.now() - lastSyncTimeRef.current < 3000) {
-                        console.log('📡 Ignoring own note change')
-                        return
-                    }
-                    // Also skip if we have pending local changes
-                    if (hasPendingChangesRef.current) {
-                        console.log('📡 Skipping sync - have pending local changes')
-                        return
-                    }
-                    console.log('📡 Note changed on another device')
-                    syncWorkspaces()
-                }
+                () => handleRemoteChange('Note')
             )
-            .subscribe()
+            .subscribe((status, err) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log('✅ Real-time sync connected')
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.error('❌ Real-time sync error:', err)
+                } else if (status === 'TIMED_OUT') {
+                    console.warn('⚠️ Real-time sync timed out, retrying...')
+                } else {
+                    console.log('📡 Real-time status:', status)
+                }
+            })
 
         return () => {
+            console.log('📡 Removing real-time sync listener')
             supabase.removeChannel(channel)
         }
     }, [isAuthenticated, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
