@@ -393,14 +393,20 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         if (!isAuthenticated || !user) return
 
         // Subscribe to changes on workspaces, tables, and notes
+        // Filter by owner_id to only receive relevant changes (reduces unnecessary syncs)
         const channel = supabase
             .channel('sync-changes')
             .on('postgres_changes', 
-                { event: '*', schema: 'public', table: 'workspaces' },
+                { event: '*', schema: 'public', table: 'workspaces', filter: `owner_id=eq.${user.id}` },
                 () => {
                     // Ignore if we recently pushed (within 3 seconds) - it's our own change
                     if (Date.now() - lastSyncTimeRef.current < 3000) {
                         console.log('📡 Ignoring own workspace change')
+                        return
+                    }
+                    // Also skip if we have pending local changes
+                    if (hasPendingChangesRef.current) {
+                        console.log('📡 Skipping sync - have pending local changes')
                         return
                     }
                     console.log('📡 Workspace changed on another device')
@@ -415,6 +421,11 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                         console.log('📡 Ignoring own table change')
                         return
                     }
+                    // Also skip if we have pending local changes
+                    if (hasPendingChangesRef.current) {
+                        console.log('📡 Skipping sync - have pending local changes')
+                        return
+                    }
                     console.log('📡 Table changed on another device')
                     syncWorkspaces()
                 }
@@ -425,6 +436,11 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     // Ignore if we recently pushed (within 3 seconds) - it's our own change
                     if (Date.now() - lastSyncTimeRef.current < 3000) {
                         console.log('📡 Ignoring own note change')
+                        return
+                    }
+                    // Also skip if we have pending local changes
+                    if (hasPendingChangesRef.current) {
+                        console.log('📡 Skipping sync - have pending local changes')
                         return
                     }
                     console.log('📡 Note changed on another device')
