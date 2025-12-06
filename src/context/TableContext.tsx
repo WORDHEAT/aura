@@ -209,15 +209,29 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const { user, isAuthenticated } = useAuth()
     const [isSyncing, setIsSyncing] = useState(false)
     const [syncError, setSyncError] = useState<string | null>(null)
+    
+    // Track pending local changes to prevent sync from overwriting
+    const hasPendingChangesRef = useRef(false)
+    const initialSyncDoneRef = useRef(false)
+    const lastSyncTimeRef = useRef<number>(0)
 
     // Set user ID for sync service when auth changes
     useEffect(() => {
         syncService.setUserId(user?.id || null)
+        // Reset sync state when user changes
+        initialSyncDoneRef.current = false
+        hasPendingChangesRef.current = false
     }, [user])
 
-    // Sync workspaces from cloud
-    const syncWorkspaces = useCallback(async () => {
+    // Sync workspaces from cloud (only overwrites if no pending local changes)
+    const syncWorkspaces = useCallback(async (forceOverwrite = false) => {
         if (!isAuthenticated || !user) return
+        
+        // Skip if there are pending local changes (unless forced or initial sync)
+        if (hasPendingChangesRef.current && !forceOverwrite && initialSyncDoneRef.current) {
+            console.log('⏸️ Skipping sync - pending local changes will be pushed instead')
+            return
+        }
         
         setIsSyncing(true)
         setSyncError(null)
@@ -261,6 +275,8 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             setSyncError(error instanceof Error ? error.message : 'Failed to sync')
         } finally {
             setIsSyncing(false)
+            initialSyncDoneRef.current = true
+            lastSyncTimeRef.current = Date.now()
         }
     }, [isAuthenticated, user, currentWorkspaceId, workspaces])
 
@@ -402,15 +418,20 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             return
         }
         prevWorkspacesRef.current = currentWorkspacesJson
+        
+        // Mark that we have pending local changes
+        hasPendingChangesRef.current = true
 
-        // Debounce the sync (wait 2 seconds after last change)
+        // Debounce the sync (wait 1 second after last change for faster UX)
         if (syncTimeoutRef.current) {
             clearTimeout(syncTimeoutRef.current)
         }
 
-        syncTimeoutRef.current = setTimeout(() => {
-            pushToCloud(workspaces)
-        }, 2000)
+        syncTimeoutRef.current = setTimeout(async () => {
+            await pushToCloud(workspaces)
+            // Clear pending changes flag after successful push
+            hasPendingChangesRef.current = false
+        }, 1000)
 
         return () => {
             if (syncTimeoutRef.current) {
