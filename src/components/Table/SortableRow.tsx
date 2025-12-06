@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, CornerDownRight, MoreHorizontal, Ban, Trash2, ChevronDown, ChevronRight, Check, Copy, Clipboard, X } from 'lucide-react'
+import { Plus, CornerDownRight, MoreHorizontal, Ban, Trash2, ChevronDown, ChevronRight, Check, Copy, Clipboard, X, GripVertical } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { ColorPicker, COLORS } from '../ColorPicker'
 import type { Column, Row } from './Table'
@@ -113,22 +113,44 @@ export function SortableRow({
             style={style}
             className={`group hover:bg-[#2a2a2a] transition-colors ${row.rowColor || ''} ${stripeClass}`}
         >
-            {/* Left Gutter Column for Actions - entire cell is draggable */}
+            {/* Left Gutter Column for Actions */}
             <td 
-                className={`w-[60px] px-1 border-r border-[#373737] bg-[#202020] sticky left-0 z-40 text-center group/gutter relative cursor-grab active:cursor-grabbing ${settings.compactMode ? 'py-1' : 'py-2'}`}
-                {...attributes}
-                {...listeners}
+                className={`w-[60px] px-1 border-r border-[#373737] bg-[#202020] sticky left-0 z-40 text-center group/gutter relative ${settings.compactMode ? 'py-1' : 'py-2'}`}
             >
                 {/* Overlay for Row Color on Sticky Column */}
                 {row.rowColor && (
                     <div className={`absolute inset-0 pointer-events-none ${row.rowColor}`} />
                 )}
+
+                {/* Mobile: Drag handle + Menu button */}
+                <div className="sm:hidden flex items-center justify-center gap-1 relative z-20">
+                    <div
+                        {...attributes}
+                        {...listeners}
+                        className="p-1.5 text-[#6b6b6b] cursor-grab active:cursor-grabbing touch-none"
+                        title="Drag to reorder"
+                    >
+                        <GripVertical size={16} />
+                    </div>
+                    <button
+                        onClick={(e) => onActionMenuClick(e, row.id)}
+                        className={`p-1.5 rounded ${activeActionMenu === row.id ? 'text-[#e3e3e3] bg-[#333]' : 'text-[#6b6b6b]'}`}
+                        title="Row actions"
+                    >
+                        <MoreHorizontal size={16} />
+                    </button>
+                </div>
                 
-                {/* Action Buttons Overlay - always visible on mobile */}
-                <div className={`absolute inset-0 z-20 flex items-center justify-center gap-0.5 bg-[#202020] transition-opacity duration-200 ${
+                {/* Desktop: Drag entire cell + hover action buttons */}
+                <div 
+                    className="hidden sm:block absolute inset-0 cursor-grab active:cursor-grabbing"
+                    {...attributes}
+                    {...listeners}
+                />
+                <div className={`hidden sm:flex absolute inset-0 z-20 items-center justify-center gap-0.5 bg-[#202020] transition-opacity duration-200 ${
                     activeActionMenu === row.id
                         ? 'opacity-100 pointer-events-auto' 
-                        : 'sm:opacity-0 sm:pointer-events-none sm:group-hover:opacity-100 sm:group-hover:pointer-events-auto'
+                        : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
                 }`}>
                     <button
                         onClick={(e) => { e.stopPropagation(); onAddSiblingRow(row.id) }}
