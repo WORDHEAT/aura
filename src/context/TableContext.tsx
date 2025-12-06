@@ -255,47 +255,47 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     console.log('📥 Initial sync - loading', cloudWorkspaces.length, 'workspaces from cloud')
                     finalWorkspaces = cloudWorkspaces
                 } else {
-                    // SUBSEQUENT SYNC: Merge cloud and local (respect local deletions)
+                    // SUBSEQUENT SYNC: Merge - LOCAL wins for shared items (preserves user edits)
+                    // Only bring in NEW items from cloud, respect local deletions
                     const localWsIds = new Set(currentWorkspaces.map(ws => ws.id))
+                    const cloudWsIds = new Set(cloudWorkspaces.map(ws => ws.id))
                     
-                    const mergedWorkspaces = cloudWorkspaces
-                        .filter(cloudWs => localWsIds.has(cloudWs.id)) // Only keep workspaces that exist locally
-                        .map(cloudWs => {
-                            const localWs = currentWorkspaces.find(ws => ws.id === cloudWs.id)!
+                    // Start with local workspaces (preserves local edits)
+                    const mergedWorkspaces = currentWorkspaces
+                        .filter(localWs => {
+                            // Keep local workspace if it exists in cloud OR is new (local-only)
+                            // Remove if it was deleted from cloud by another device
+                            return cloudWsIds.has(localWs.id) || !initialSyncDoneRef.current
+                        })
+                        .map(localWs => {
+                            const cloudWs = cloudWorkspaces.find(ws => ws.id === localWs.id)
+                            if (!cloudWs) return localWs // Local-only workspace
                             
-                            // Respect local deletions of tables/notes
+                            // For shared workspace: keep LOCAL tables/notes (preserves edits)
+                            // But add any NEW tables/notes from cloud (from other devices)
                             const localTableIds = new Set(localWs.tables.map(t => t.id))
                             const localNoteIds = new Set(localWs.notes.map(n => n.id))
                             
-                            // Only keep cloud items that also exist locally
-                            const cloudTablesKept = cloudWs.tables.filter(t => localTableIds.has(t.id))
-                            const cloudNotesKept = cloudWs.notes.filter(n => localNoteIds.has(n.id))
-                            
-                            // Add local-only items (not yet in cloud)
-                            const cloudTableIds = new Set(cloudWs.tables.map(t => t.id))
-                            const cloudNoteIds = new Set(cloudWs.notes.map(n => n.id))
-                            const localOnlyTables = localWs.tables.filter(t => !cloudTableIds.has(t.id))
-                            const localOnlyNotes = localWs.notes.filter(n => !cloudNoteIds.has(n.id))
+                            // Find cloud items that don't exist locally (new from other device)
+                            const newCloudTables = cloudWs.tables.filter(t => !localTableIds.has(t.id))
+                            const newCloudNotes = cloudWs.notes.filter(n => !localNoteIds.has(n.id))
                             
                             return {
-                                ...cloudWs,
-                                tables: [...cloudTablesKept, ...localOnlyTables],
-                                notes: [...cloudNotesKept, ...localOnlyNotes],
-                                isExpanded: localWs.isExpanded ?? cloudWs.isExpanded
+                                ...localWs, // Keep local data (preserves edits)
+                                tables: [...localWs.tables, ...newCloudTables],
+                                notes: [...localWs.notes, ...newCloudNotes],
+                                // Sync metadata from cloud
+                                ownerId: cloudWs.ownerId,
+                                visibility: cloudWs.visibility,
+                                updatedAt: cloudWs.updatedAt
                             }
                         })
                     
-                    // Add local-only workspaces
-                    const cloudWsIds = new Set(cloudWorkspaces.map(ws => ws.id))
-                    const localOnlyWorkspaces = currentWorkspaces.filter(ws => !cloudWsIds.has(ws.id))
+                    // Add cloud-only workspaces (new from other device)
+                    const newCloudWorkspaces = cloudWorkspaces.filter(ws => !localWsIds.has(ws.id))
                     
-                    finalWorkspaces = [...mergedWorkspaces, ...localOnlyWorkspaces]
-                    console.log('🔀 Merged sync - kept', mergedWorkspaces.length, 'workspaces,', localOnlyWorkspaces.length, 'local-only')
-                    
-                    // Push local-only items to cloud
-                    if (localOnlyWorkspaces.length > 0) {
-                        hasPendingChangesRef.current = true
-                    }
+                    finalWorkspaces = [...mergedWorkspaces, ...newCloudWorkspaces]
+                    console.log('🔀 Merged sync - local:', mergedWorkspaces.length, 'new from cloud:', newCloudWorkspaces.length)
                 }
                 
                 setWorkspaces(finalWorkspaces)
@@ -557,9 +557,21 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
 
     // Auto-push changes to cloud (debounced)
     useEffect(() => {
+        // Skip if not authenticated
+        if (!isAuthenticated || !user) {
+            prevWorkspacesRef.current = JSON.stringify(workspaces)
+            return
+        }
+        
         // Skip initial load
         if (isInitialLoadRef.current) {
             isInitialLoadRef.current = false
+            prevWorkspacesRef.current = JSON.stringify(workspaces)
+            return
+        }
+        
+        // Skip if we just synced from cloud (prevents pushing cloud data back to cloud)
+        if (Date.now() - lastSyncTimeRef.current < 1000) {
             prevWorkspacesRef.current = JSON.stringify(workspaces)
             return
         }
@@ -592,7 +604,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 clearTimeout(syncTimeoutRef.current)
             }
         }
-    }, [workspaces, pushToCloud])
+    }, [workspaces, pushToCloud, isAuthenticated, user])
 
     // Flush pending changes when leaving the page (prevents losing deletions on refresh)
     useEffect(() => {
