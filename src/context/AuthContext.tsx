@@ -117,13 +117,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const signOut = async (): Promise<void> => {
         setIsLoading(true)
         try {
-            const { error } = await supabase.auth.signOut()
-            if (error) throw error
-            // Clear local storage
+            // Clear local storage first
             localStorage.removeItem('aura-workspaces')
             localStorage.removeItem('aura-current-table-id')
-            // Reload to reset app state
-            window.location.reload()
+            localStorage.removeItem('sb-vyjjqzzsqupbhglasylt-auth-token')
+            
+            // Sign out from Supabase
+            await supabase.auth.signOut({ scope: 'global' })
+            
+            // Clear user state
+            setUser(null)
+            
+            // Force reload after a short delay
+            setTimeout(() => {
+                window.location.href = window.location.origin
+            }, 100)
+        } catch (error) {
+            console.error('Sign out error:', error)
+            // Force clear even on error
+            setUser(null)
+            localStorage.clear()
+            window.location.href = window.location.origin
         } finally {
             setIsLoading(false)
         }
