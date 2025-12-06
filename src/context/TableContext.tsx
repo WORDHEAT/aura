@@ -214,6 +214,10 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const hasPendingChangesRef = useRef(false)
     const initialSyncDoneRef = useRef(false)
     const lastSyncTimeRef = useRef<number>(0)
+    
+    // Ref to always access latest workspaces (fixes stale closure in real-time listener)
+    const workspacesRef = useRef(workspaces)
+    workspacesRef.current = workspaces
 
     // Set user ID for sync service when auth changes
     useEffect(() => {
@@ -224,6 +228,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     }, [user])
 
     // Sync workspaces from cloud (only overwrites if no pending local changes)
+    // Uses workspacesRef to always access latest workspaces (fixes stale closure issue)
     const syncWorkspaces = useCallback(async (forceOverwrite = false) => {
         if (!isAuthenticated || !user) return
         
@@ -238,12 +243,14 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         
         try {
             const cloudWorkspaces = await syncService.fetchWorkspaces()
+            // Always read latest workspaces from ref (not stale closure)
+            const currentWorkspaces = workspacesRef.current
             
             if (cloudWorkspaces.length > 0) {
                 // Merge cloud and local data
                 // IMPORTANT: Only include cloud workspaces that also exist locally
                 // (to respect local deletions after initial sync)
-                const localWsIds = new Set(workspaces.map(ws => ws.id))
+                const localWsIds = new Set(currentWorkspaces.map(ws => ws.id))
                 
                 const mergedWorkspaces = cloudWorkspaces
                     .filter(cloudWs => {
@@ -253,7 +260,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                         return localWsIds.has(cloudWs.id)
                     })
                     .map(cloudWs => {
-                        const localWs = workspaces.find(ws => ws.id === cloudWs.id)
+                        const localWs = currentWorkspaces.find(ws => ws.id === cloudWs.id)
                         if (!localWs) return cloudWs
                         
                         // Find local tables/notes that aren't in cloud yet
@@ -285,7 +292,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 
                 // Also add local-only workspaces that don't exist in cloud
                 const cloudWsIds = new Set(cloudWorkspaces.map(ws => ws.id))
-                const localOnlyWorkspaces = workspaces.filter(ws => !cloudWsIds.has(ws.id))
+                const localOnlyWorkspaces = currentWorkspaces.filter(ws => !cloudWsIds.has(ws.id))
                 
                 const finalWorkspaces = [...mergedWorkspaces, ...localOnlyWorkspaces]
                 
@@ -307,7 +314,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             } else {
                 // Cloud is empty - push current local data to cloud
                 console.log('☁️ Cloud is empty, pushing local data...')
-                for (const workspace of workspaces) {
+                for (const workspace of currentWorkspaces) {
                     try {
                         await syncService.createWorkspace(workspace)
                         // Create tables
@@ -332,7 +339,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             initialSyncDoneRef.current = true
             lastSyncTimeRef.current = Date.now()
         }
-    }, [isAuthenticated, user, currentWorkspaceId, workspaces])
+    }, [isAuthenticated, user, currentWorkspaceId]) // Removed workspaces - using ref instead
 
     // Set workspace visibility
     const setWorkspaceVisibility = useCallback(async (workspaceId: string, visibility: WorkspaceVisibility) => {
