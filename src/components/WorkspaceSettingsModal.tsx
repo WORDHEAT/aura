@@ -237,7 +237,7 @@ export function WorkspaceSettingsModal({ isOpen, onClose, workspaceId }: Workspa
     const isOwner = workspace.ownerId === user?.id
 
     return (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center">
+        <div className="fixed inset-0 z-[50000] flex items-center justify-center">
             {/* Backdrop */}
             <div 
                 className="absolute inset-0 bg-black/60 backdrop-blur-sm"
