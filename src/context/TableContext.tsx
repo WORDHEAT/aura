@@ -467,7 +467,12 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     for (const cloudTableId of cloudTableIds) {
                         if (!localTableIds.has(cloudTableId)) {
                             console.log('🗑️ Deleting table from cloud:', cloudTableId)
-                            await syncService.deleteTable(cloudTableId)
+                            try {
+                                await syncService.deleteTable(cloudTableId)
+                                console.log('✅ Table deleted successfully:', cloudTableId)
+                            } catch (deleteError) {
+                                console.error('❌ Failed to delete table:', cloudTableId, deleteError)
+                            }
                         }
                     }
                     
@@ -485,7 +490,12 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     for (const cloudNoteId of cloudNoteIds) {
                         if (!localNoteIds.has(cloudNoteId)) {
                             console.log('🗑️ Deleting note from cloud:', cloudNoteId)
-                            await syncService.deleteNote(cloudNoteId)
+                            try {
+                                await syncService.deleteNote(cloudNoteId)
+                                console.log('✅ Note deleted successfully:', cloudNoteId)
+                            } catch (deleteError) {
+                                console.error('❌ Failed to delete note:', cloudNoteId, deleteError)
+                            }
                         }
                     }
                 }
@@ -494,13 +504,19 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             // Delete removed workspaces
             for (const cloudWs of cloudWorkspaces) {
                 if (!localWorkspaceIds.has(cloudWs.id)) {
-                    await syncService.deleteWorkspace(cloudWs.id)
+                    console.log('🗑️ Deleting workspace from cloud:', cloudWs.id, cloudWs.name)
+                    try {
+                        await syncService.deleteWorkspace(cloudWs.id)
+                        console.log('✅ Workspace deleted successfully:', cloudWs.id)
+                    } catch (deleteError) {
+                        console.error('❌ Failed to delete workspace:', cloudWs.id, deleteError)
+                    }
                 }
             }
 
             // Mark that we just pushed to ignore incoming real-time notifications
             lastSyncTimeRef.current = Date.now()
-            console.log('✅ Synced to cloud')
+            console.log('✅ Synced to cloud - local:', workspacesToPush.length, 'cloud:', cloudWorkspaces.length)
         } catch (error) {
             console.error('Push to cloud error:', error)
         }
@@ -511,12 +527,6 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         // Skip initial load
         if (isInitialLoadRef.current) {
             isInitialLoadRef.current = false
-            prevWorkspacesRef.current = JSON.stringify(workspaces)
-            return
-        }
-        
-        // Skip if we just synced from cloud (within 2 seconds) to prevent loop
-        if (Date.now() - lastSyncTimeRef.current < 2000) {
             prevWorkspacesRef.current = JSON.stringify(workspaces)
             return
         }
@@ -531,16 +541,18 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         // Mark that we have pending local changes
         hasPendingChangesRef.current = true
 
-        // Debounce the sync (wait 1 second after last change for faster UX)
+        // Debounce the sync (wait 1.5 seconds after last change)
         if (syncTimeoutRef.current) {
             clearTimeout(syncTimeoutRef.current)
         }
 
         syncTimeoutRef.current = setTimeout(async () => {
-            await pushToCloud(workspaces)
+            // Use ref to get latest workspaces (not stale closure)
+            const latestWorkspaces = workspacesRef.current
+            await pushToCloud(latestWorkspaces)
             // Clear pending changes flag after successful push
             hasPendingChangesRef.current = false
-        }, 1000)
+        }, 1500)
 
         return () => {
             if (syncTimeoutRef.current) {
