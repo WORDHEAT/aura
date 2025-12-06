@@ -944,22 +944,28 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
 
     const moveTableToWorkspace = (tableId: string, fromWorkspaceId: string, toWorkspaceId: string) => {
         if (fromWorkspaceId === toWorkspaceId) return
-        
-        const fromWorkspace = workspaces.find(ws => ws.id === fromWorkspaceId)
-        const tableToMove = fromWorkspace?.tables.find(t => t.id === tableId)
-        if (!tableToMove) return
 
-        setWorkspacesWithHistory(workspaces.map(ws => {
-            if (ws.id === fromWorkspaceId) {
-                // Remove table from source workspace
-                return { ...ws, tables: ws.tables.filter(t => t.id !== tableId) }
+        // Use functional update to avoid stale closure issues
+        setWorkspacesWithHistory(prev => {
+            const fromWorkspace = prev.find(ws => ws.id === fromWorkspaceId)
+            const tableToMove = fromWorkspace?.tables.find(t => t.id === tableId)
+            if (!tableToMove) {
+                console.warn('moveTableToWorkspace: table not found', tableId)
+                return prev // Return unchanged if table not found
             }
-            if (ws.id === toWorkspaceId) {
-                // Add table to target workspace
-                return { ...ws, tables: [...ws.tables, tableToMove] }
-            }
-            return ws
-        }))
+
+            return prev.map(ws => {
+                if (ws.id === fromWorkspaceId) {
+                    // Remove table from source workspace
+                    return { ...ws, tables: ws.tables.filter(t => t.id !== tableId) }
+                }
+                if (ws.id === toWorkspaceId) {
+                    // Add table to target workspace
+                    return { ...ws, tables: [...ws.tables, tableToMove] }
+                }
+                return ws
+            })
+        })
 
         // Update current workspace if the moved table was the current one
         if (currentTableId === tableId) {
@@ -1202,22 +1208,28 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
 
     const moveNoteToWorkspace = (noteId: string, fromWorkspaceId: string, toWorkspaceId: string) => {
         if (fromWorkspaceId === toWorkspaceId) return
-        
-        const fromWorkspace = workspaces.find(ws => ws.id === fromWorkspaceId)
-        const noteToMove = fromWorkspace?.notes.find(n => n.id === noteId)
-        if (!noteToMove) return
 
-        setWorkspacesWithHistory(workspaces.map(ws => {
-            if (ws.id === fromWorkspaceId) {
-                // Remove note from source workspace
-                return { ...ws, notes: ws.notes.filter(n => n.id !== noteId) }
+        // Use functional update to avoid stale closure issues
+        setWorkspacesWithHistory(prev => {
+            const fromWorkspace = prev.find(ws => ws.id === fromWorkspaceId)
+            const noteToMove = fromWorkspace?.notes.find(n => n.id === noteId)
+            if (!noteToMove) {
+                console.warn('moveNoteToWorkspace: note not found', noteId)
+                return prev // Return unchanged if note not found
             }
-            if (ws.id === toWorkspaceId) {
-                // Add note to target workspace
-                return { ...ws, notes: [...ws.notes, noteToMove] }
-            }
-            return ws
-        }))
+
+            return prev.map(ws => {
+                if (ws.id === fromWorkspaceId) {
+                    // Remove note from source workspace
+                    return { ...ws, notes: ws.notes.filter(n => n.id !== noteId) }
+                }
+                if (ws.id === toWorkspaceId) {
+                    // Add note to target workspace
+                    return { ...ws, notes: [...ws.notes, noteToMove] }
+                }
+                return ws
+            })
+        })
 
         // Update current workspace if the moved note was the current one
         if (currentNoteId === noteId) {
