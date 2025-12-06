@@ -128,16 +128,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // Clear user state
             setUser(null)
             
-            // Force reload after a short delay
-            setTimeout(() => {
-                window.location.href = window.location.origin
-            }, 100)
+            // Reload the page (works in both web and Electron)
+            window.location.reload()
         } catch (error) {
             console.error('Sign out error:', error)
             // Force clear even on error
             setUser(null)
             localStorage.clear()
-            window.location.href = window.location.origin
+            window.location.reload()
         } finally {
             setIsLoading(false)
         }
