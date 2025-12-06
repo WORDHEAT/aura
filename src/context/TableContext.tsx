@@ -11,6 +11,8 @@ export interface TableItem {
     name: string
     columns: Column[]
     rows: Row[]
+    createdAt?: string
+    updatedAt?: string
     // Per-table appearance settings (undefined = use global)
     appearance?: {
         compactMode?: boolean
@@ -254,56 +256,99 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     // This is the source of truth when starting fresh
                     console.log('📥 Initial sync - loading', cloudWorkspaces.length, 'workspaces from cloud')
                     finalWorkspaces = cloudWorkspaces
-                } else if (!hasPendingChangesRef.current) {
-                    // NO PENDING CHANGES: Take cloud data (it's from another device)
-                    // This is the key fix - when we have no local edits, cloud is truth
-                    console.log('📥 Real-time sync - taking cloud data (no pending local changes)')
-                    finalWorkspaces = cloudWorkspaces
                 } else {
-                    // HAS PENDING CHANGES: Merge carefully - LOCAL wins for items being edited
-                    // Only bring in NEW items from cloud, respect local deletions
-                    const localWsIds = new Set(currentWorkspaces.map(ws => ws.id))
+                    // SMART MERGE: Use timestamps to resolve conflicts
+                    // Cloud is authoritative for item LOCATION (which workspace)
+                    // Compare updatedAt for content conflicts
+                    console.log('� Smart merge - reconciling local and cloud state')
+                    
+                    // Build maps of ALL items across ALL workspaces for proper deduplication
+                    const allCloudTables = new Map<string, { table: TableItem, workspaceId: string }>()
+                    const allCloudNotes = new Map<string, { note: NoteItem, workspaceId: string }>()
+                    
+                    for (const ws of cloudWorkspaces) {
+                        for (const t of ws.tables) {
+                            allCloudTables.set(t.id, { table: t, workspaceId: ws.id })
+                        }
+                        for (const n of ws.notes) {
+                            allCloudNotes.set(n.id, { note: n, workspaceId: ws.id })
+                        }
+                    }
+                    
+                    const allLocalTables = new Map<string, { table: TableItem, workspaceId: string }>()
+                    const allLocalNotes = new Map<string, { note: NoteItem, workspaceId: string }>()
+                    
+                    for (const ws of currentWorkspaces) {
+                        for (const t of ws.tables) {
+                            allLocalTables.set(t.id, { table: t, workspaceId: ws.id })
+                        }
+                        for (const n of ws.notes) {
+                            allLocalNotes.set(n.id, { note: n, workspaceId: ws.id })
+                        }
+                    }
+                    
+                    // Start with cloud structure (authoritative for positions/moves)
+                    // But use local content if it's newer
+                    finalWorkspaces = cloudWorkspaces.map(cloudWs => {
+                        const localWs = currentWorkspaces.find(ws => ws.id === cloudWs.id)
+                        
+                        // Merge tables: cloud positions, but check timestamps for content
+                        const mergedTables = cloudWs.tables.map(cloudTable => {
+                            const localEntry = allLocalTables.get(cloudTable.id)
+                            if (!localEntry) return cloudTable
+                            
+                            // Use newer version based on updatedAt
+                            const cloudTime = new Date(cloudTable.updatedAt || 0).getTime()
+                            const localTime = new Date(localEntry.table.updatedAt || 0).getTime()
+                            return localTime > cloudTime ? localEntry.table : cloudTable
+                        })
+                        
+                        // Merge notes: cloud positions, but check timestamps for content
+                        const mergedNotes = cloudWs.notes.map(cloudNote => {
+                            const localEntry = allLocalNotes.get(cloudNote.id)
+                            if (!localEntry) return cloudNote
+                            
+                            // Use newer version based on updatedAt
+                            const cloudTime = new Date(cloudNote.updatedAt || 0).getTime()
+                            const localTime = new Date(localEntry.note.updatedAt || 0).getTime()
+                            return localTime > cloudTime ? localEntry.note : cloudNote
+                        })
+                        
+                        // Add local-only items (new, not yet pushed to cloud)
+                        if (localWs) {
+                            const cloudTableIds = new Set(cloudWs.tables.map(t => t.id))
+                            const cloudNoteIds = new Set(cloudWs.notes.map(n => n.id))
+                            
+                            // Local tables not in ANY cloud workspace = truly new
+                            const newLocalTables = localWs.tables.filter(t => 
+                                !cloudTableIds.has(t.id) && !allCloudTables.has(t.id)
+                            )
+                            // Local notes not in ANY cloud workspace = truly new
+                            const newLocalNotes = localWs.notes.filter(n => 
+                                !cloudNoteIds.has(n.id) && !allCloudNotes.has(n.id)
+                            )
+                            
+                            mergedTables.push(...newLocalTables)
+                            mergedNotes.push(...newLocalNotes)
+                        }
+                        
+                        return {
+                            ...cloudWs,
+                            tables: mergedTables,
+                            notes: mergedNotes,
+                            // Keep local expansion state
+                            isExpanded: localWs?.isExpanded ?? cloudWs.isExpanded
+                        }
+                    })
+                    
+                    // Add local-only workspaces (new, not yet pushed)
                     const cloudWsIds = new Set(cloudWorkspaces.map(ws => ws.id))
+                    const newLocalWorkspaces = currentWorkspaces.filter(ws => 
+                        !cloudWsIds.has(ws.id) && !ws.ownerId // Never synced = truly new
+                    )
+                    finalWorkspaces.push(...newLocalWorkspaces)
                     
-                    // Start with local workspaces (preserves local edits)
-                    const mergedWorkspaces = currentWorkspaces
-                        .filter(localWs => {
-                            // Keep if exists in cloud (shared workspace)
-                            if (cloudWsIds.has(localWs.id)) return true
-                            // Keep if it's a new local workspace (never synced - no ownerId)
-                            // Only remove if it was synced before but now deleted from cloud
-                            if (!localWs.ownerId) return true // New, never synced
-                            return false // Was synced, now deleted from cloud
-                        })
-                        .map(localWs => {
-                            const cloudWs = cloudWorkspaces.find(ws => ws.id === localWs.id)
-                            if (!cloudWs) return localWs // Local-only workspace
-                            
-                            // For shared workspace: keep LOCAL tables/notes (preserves edits)
-                            // But add any NEW tables/notes from cloud (from other devices)
-                            const localTableIds = new Set(localWs.tables.map(t => t.id))
-                            const localNoteIds = new Set(localWs.notes.map(n => n.id))
-                            
-                            // Find cloud items that don't exist locally (new from other device)
-                            const newCloudTables = cloudWs.tables.filter(t => !localTableIds.has(t.id))
-                            const newCloudNotes = cloudWs.notes.filter(n => !localNoteIds.has(n.id))
-                            
-                            return {
-                                ...localWs, // Keep local data (preserves edits)
-                                tables: [...localWs.tables, ...newCloudTables],
-                                notes: [...localWs.notes, ...newCloudNotes],
-                                // Sync metadata from cloud
-                                ownerId: cloudWs.ownerId,
-                                visibility: cloudWs.visibility,
-                                updatedAt: cloudWs.updatedAt
-                            }
-                        })
-                    
-                    // Add cloud-only workspaces (new from other device)
-                    const newCloudWorkspaces = cloudWorkspaces.filter(ws => !localWsIds.has(ws.id))
-                    
-                    finalWorkspaces = [...mergedWorkspaces, ...newCloudWorkspaces]
-                    console.log('🔀 Merged sync (has pending) - local:', mergedWorkspaces.length, 'new from cloud:', newCloudWorkspaces.length)
+                    console.log('🔀 Smart merge complete:', finalWorkspaces.length, 'workspaces')
                 }
                 
                 setWorkspaces(finalWorkspaces)
