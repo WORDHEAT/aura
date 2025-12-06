@@ -61,6 +61,8 @@ CREATE TABLE IF NOT EXISTS notes (
     name TEXT NOT NULL,
     content TEXT DEFAULT '',
     position INTEGER DEFAULT 0,
+    is_monospace BOOLEAN DEFAULT false,
+    word_wrap BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
