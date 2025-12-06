@@ -122,7 +122,8 @@ function App() {
             <p className="text-[#9b9b9b] text-xs sm:text-sm mt-0.5 hidden sm:block">Your tables, your time.</p>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
-            <div className="flex bg-[#2a2a2a] p-1 rounded-lg border border-[#373737]">
+            {/* View Toggle - hidden on mobile */}
+            <div className="hidden sm:flex bg-[#2a2a2a] p-1 rounded-lg border border-[#373737]">
               <button
                 onClick={() => setViewMode('single')}
                 className={`p-1.5 rounded-md transition-all ${viewMode === 'single' ? 'bg-[#373737] text-blue-400 shadow-sm' : 'text-[#6b6b6b] hover:text-[#e3e3e3]'}`}
