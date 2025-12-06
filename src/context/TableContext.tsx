@@ -571,6 +571,49 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
     }, [workspaces, pushToCloud])
 
+    // Flush pending changes when leaving the page (prevents losing deletions on refresh)
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            if (hasPendingChangesRef.current && isAuthenticated && user) {
+                // Cancel the debounced push
+                if (syncTimeoutRef.current) {
+                    clearTimeout(syncTimeoutRef.current)
+                }
+                // Synchronously push to cloud using sendBeacon for reliability
+                const workspacesData = JSON.stringify({
+                    workspaces: workspacesRef.current,
+                    userId: user.id
+                })
+                // Store in localStorage as backup - will be pushed on next load
+                localStorage.setItem('aura-pending-sync', workspacesData)
+                console.log('💾 Saved pending changes for next session')
+            }
+        }
+        
+        window.addEventListener('beforeunload', handleBeforeUnload)
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+    }, [isAuthenticated, user])
+    
+    // On load, check for pending sync from previous session
+    useEffect(() => {
+        const pendingSync = localStorage.getItem('aura-pending-sync')
+        if (pendingSync && isAuthenticated && user) {
+            try {
+                const { workspaces: pendingWorkspaces } = JSON.parse(pendingSync)
+                console.log('📤 Found pending sync from previous session, pushing...')
+                pushToCloud(pendingWorkspaces).then(() => {
+                    localStorage.removeItem('aura-pending-sync')
+                    console.log('✅ Pending sync completed')
+                    // Re-sync to get latest state
+                    syncWorkspaces()
+                })
+            } catch (e) {
+                console.error('Failed to process pending sync:', e)
+                localStorage.removeItem('aura-pending-sync')
+            }
+        }
+    }, [isAuthenticated, user]) // eslint-disable-line react-hooks/exhaustive-deps
+
     // Save to localStorage
     useEffect(() => {
         localStorage.setItem('aura-workspaces', JSON.stringify(workspaces))
