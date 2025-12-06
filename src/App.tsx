@@ -138,35 +138,33 @@ function App() {
                 <LayoutList size={18} />
               </button>
             </div>
-            {/* Undo/Redo - hidden on mobile */}
-            <div className="hidden sm:flex items-center">
-              <div className="w-px h-6 bg-[#373737] mx-1" />
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={undo}
-                  disabled={!canUndo}
-                  className={`p-2 rounded-lg transition-colors ${
-                    canUndo 
-                      ? 'text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a]' 
-                      : 'text-[#4a4a4a] cursor-not-allowed'
-                  }`}
-                  title="Undo (Ctrl+Z)"
-                >
-                  <Undo2 size={18} />
-                </button>
-                <button
-                  onClick={redo}
-                  disabled={!canRedo}
-                  className={`p-2 rounded-lg transition-colors ${
-                    canRedo 
-                      ? 'text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a]' 
-                      : 'text-[#4a4a4a] cursor-not-allowed'
-                  }`}
-                  title="Redo (Ctrl+Y)"
-                >
-                  <Redo2 size={18} />
-                </button>
-              </div>
+            {/* Undo/Redo */}
+            <div className="w-px h-6 bg-[#373737] mx-1" />
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={undo}
+                disabled={!canUndo}
+                className={`p-2 rounded-lg transition-colors ${
+                  canUndo 
+                    ? 'text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] active:scale-95' 
+                    : 'text-[#4a4a4a] cursor-not-allowed'
+                }`}
+                title="Undo"
+              >
+                <Undo2 size={18} />
+              </button>
+              <button
+                onClick={redo}
+                disabled={!canRedo}
+                className={`p-2 rounded-lg transition-colors ${
+                  canRedo 
+                    ? 'text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] active:scale-95' 
+                    : 'text-[#4a4a4a] cursor-not-allowed'
+                }`}
+                title="Redo"
+              >
+                <Redo2 size={18} />
+              </button>
             </div>
             <div className="w-px h-6 bg-[#373737] mx-1" />
             <button

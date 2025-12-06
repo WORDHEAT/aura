@@ -116,7 +116,7 @@ export function MultiSelectCell({ value, onChange, options = [], onOptionsChange
                                     </label>
                                     <button
                                         onClick={() => handleRemoveOption(option)}
-                                        className="opacity-0 group-hover:opacity-100 text-[#6b6b6b] hover:text-red-400 transition-all p-1"
+                                        className="sm:opacity-0 sm:group-hover:opacity-100 text-[#6b6b6b] hover:text-red-400 transition-all p-1.5"
                                     >
                                         <X size={14} />
                                     </button>
