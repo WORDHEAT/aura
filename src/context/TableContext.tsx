@@ -354,9 +354,32 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
     }, [isAuthenticated])
 
-    // Auto-sync when user logs in
+    // Auto-sync when user logs in (but wait for pending sync first)
     useEffect(() => {
-        if (isAuthenticated && user) {
+        if (!isAuthenticated || !user) return
+        
+        const pendingSync = localStorage.getItem('aura-pending-sync')
+        if (pendingSync) {
+            // Has pending changes from previous session - push them first
+            try {
+                const { workspaces: pendingWorkspaces } = JSON.parse(pendingSync)
+                console.log('📤 Found pending sync from previous session, pushing first...')
+                pushToCloud(pendingWorkspaces).then(() => {
+                    localStorage.removeItem('aura-pending-sync')
+                    console.log('✅ Pending sync completed, now syncing...')
+                    syncWorkspaces()
+                }).catch(err => {
+                    console.error('Failed to push pending sync:', err)
+                    localStorage.removeItem('aura-pending-sync')
+                    syncWorkspaces()
+                })
+            } catch (e) {
+                console.error('Failed to parse pending sync:', e)
+                localStorage.removeItem('aura-pending-sync')
+                syncWorkspaces()
+            }
+        } else {
+            // No pending changes, just sync normally
             syncWorkspaces()
         }
     }, [isAuthenticated, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -594,26 +617,6 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         return () => window.removeEventListener('beforeunload', handleBeforeUnload)
     }, [isAuthenticated, user])
     
-    // On load, check for pending sync from previous session
-    useEffect(() => {
-        const pendingSync = localStorage.getItem('aura-pending-sync')
-        if (pendingSync && isAuthenticated && user) {
-            try {
-                const { workspaces: pendingWorkspaces } = JSON.parse(pendingSync)
-                console.log('📤 Found pending sync from previous session, pushing...')
-                pushToCloud(pendingWorkspaces).then(() => {
-                    localStorage.removeItem('aura-pending-sync')
-                    console.log('✅ Pending sync completed')
-                    // Re-sync to get latest state
-                    syncWorkspaces()
-                })
-            } catch (e) {
-                console.error('Failed to process pending sync:', e)
-                localStorage.removeItem('aura-pending-sync')
-            }
-        }
-    }, [isAuthenticated, user]) // eslint-disable-line react-hooks/exhaustive-deps
-
     // Save to localStorage
     useEffect(() => {
         localStorage.setItem('aura-workspaces', JSON.stringify(workspaces))
