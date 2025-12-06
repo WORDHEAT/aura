@@ -68,7 +68,8 @@
           "arch": ["x64"]
         }
       ],
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "icon": "public/icon.ico"
     },
     "nsis": {
       "oneClick": false,
