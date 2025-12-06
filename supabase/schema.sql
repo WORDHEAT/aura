@@ -368,3 +368,27 @@ CREATE TRIGGER update_tables_updated_at
 CREATE TRIGGER update_notes_updated_at
     BEFORE UPDATE ON notes
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============ REALTIME ============
+-- Enable realtime for sync across devices
+-- This adds tables to Supabase's realtime publication
+
+-- First check if publication exists and add tables
+DO $$
+BEGIN
+    -- Add tables to realtime publication (Supabase creates this automatically)
+    IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+        -- Drop existing and re-add to ensure clean state
+        ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS workspaces;
+        ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS tables;
+        ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS notes;
+        
+        ALTER PUBLICATION supabase_realtime ADD TABLE workspaces;
+        ALTER PUBLICATION supabase_realtime ADD TABLE tables;
+        ALTER PUBLICATION supabase_realtime ADD TABLE notes;
+        
+        RAISE NOTICE 'Added workspaces, tables, notes to supabase_realtime publication';
+    ELSE
+        RAISE NOTICE 'supabase_realtime publication does not exist';
+    END IF;
+END $$;
