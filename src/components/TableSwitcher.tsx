@@ -220,26 +220,26 @@ function SortableTableRow({
                     </span>
                 )}
                 
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                <div className="flex items-center gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
                     <button
                         onClick={(e) => {
                             e.stopPropagation()
                             onShowDuplicateOptions(workspace.id, table.id)
                         }}
-                        className="text-[#6b6b6b] hover:text-blue-400 p-0.5"
+                        className="text-[#6b6b6b] hover:text-blue-400 p-1.5 rounded hover:bg-[#333]"
                         title="Duplicate table"
                     >
-                        <Copy size={11} />
+                        <Copy size={12} />
                     </button>
                     <button
                         onClick={(e) => {
                             e.stopPropagation()
                             onDelete(table.id)
                         }}
-                        className="text-[#6b6b6b] hover:text-red-400 p-0.5"
+                        className="text-[#6b6b6b] hover:text-red-400 p-1.5 rounded hover:bg-[#333]"
                         title="Delete table"
                     >
-                        <Trash2 size={11} />
+                        <Trash2 size={12} />
                     </button>
                 </div>
             </div>
@@ -426,26 +426,26 @@ function SortableNoteRow({
                     </span>
                 )}
                 
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                <div className="flex items-center gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
                     <button
                         onClick={(e) => {
                             e.stopPropagation()
                             onShowDuplicateOptions(workspace.id, note.id)
                         }}
-                        className="text-[#6b6b6b] hover:text-blue-400 p-0.5"
+                        className="text-[#6b6b6b] hover:text-blue-400 p-1.5 rounded hover:bg-[#333]"
                         title="Duplicate note"
                     >
-                        <Copy size={11} />
+                        <Copy size={12} />
                     </button>
                     <button
                         onClick={(e) => {
                             e.stopPropagation()
                             onDelete(note.id)
                         }}
-                        className="text-[#6b6b6b] hover:text-red-400 p-0.5"
+                        className="text-[#6b6b6b] hover:text-red-400 p-1.5 rounded hover:bg-[#333]"
                         title="Delete note"
                     >
-                        <Trash2 size={11} />
+                        <Trash2 size={12} />
                     </button>
                 </div>
             </div>
@@ -820,16 +820,16 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: Tab
                         </span>
                     )}
                     
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                         <button
                             onClick={(e) => {
                                 e.stopPropagation()
                                 setWorkspaceSettingsId(workspace.id)
                             }}
-                            className="text-[#6b6b6b] hover:text-[#e3e3e3] p-1 rounded hover:bg-[#333] transition-colors"
+                            className="text-[#6b6b6b] hover:text-[#e3e3e3] p-1.5 rounded hover:bg-[#333] transition-colors"
                             title="Workspace settings"
                         >
-                            <Settings size={12} />
+                            <Settings size={14} />
                         </button>
                         <button
                             onClick={(e) => {
@@ -837,10 +837,10 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: Tab
                                 setAddingTableToWorkspace(workspace.id)
                                 setNewTableName('')
                             }}
-                            className="text-[#6b6b6b] hover:text-blue-400 p-1 rounded hover:bg-[#333] transition-colors"
+                            className="text-[#6b6b6b] hover:text-blue-400 p-1.5 rounded hover:bg-[#333] transition-colors"
                             title="Add table"
                         >
-                            <TableIcon size={12} />
+                            <TableIcon size={14} />
                         </button>
                         <button
                             onClick={(e) => {
@@ -848,20 +848,20 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: Tab
                                 setAddingNoteToWorkspace(workspace.id)
                                 setNewNoteName('')
                             }}
-                            className="text-[#6b6b6b] hover:text-green-400 p-1 rounded hover:bg-[#333] transition-colors"
+                            className="text-[#6b6b6b] hover:text-green-400 p-1.5 rounded hover:bg-[#333] transition-colors"
                             title="Add note"
                         >
-                            <FileText size={12} />
+                            <FileText size={14} />
                         </button>
                         <button
                             onClick={(e) => {
                                 e.stopPropagation()
                                 setDeleteConfirm({ type: 'workspace', id: workspace.id })
                             }}
-                            className="text-[#6b6b6b] hover:text-red-400 p-1 rounded hover:bg-[#333] transition-colors"
+                            className="text-[#6b6b6b] hover:text-red-400 p-1.5 rounded hover:bg-[#333] transition-colors"
                             title="Delete workspace"
                         >
-                            <Trash2 size={12} />
+                            <Trash2 size={14} />
                         </button>
                     </div>
                     </div>
