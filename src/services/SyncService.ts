@@ -174,6 +174,8 @@ export class SyncService {
             id: n.id,
             name: n.name,
             content: n.content,
+            isMonospace: n.is_monospace ?? false,
+            wordWrap: n.word_wrap ?? true,
             createdAt: n.created_at,
             updatedAt: n.updated_at
         }))
@@ -320,7 +322,9 @@ export class SyncService {
                 workspace_id: workspaceId,
                 name: note.name,
                 content: note.content,
-                position
+                position,
+                is_monospace: note.isMonospace ?? false,
+                word_wrap: note.wordWrap ?? true
             })
 
         if (error) {
@@ -337,7 +341,9 @@ export class SyncService {
             .update({
                 name: note.name,
                 content: note.content,
-                position
+                position,
+                is_monospace: note.isMonospace ?? false,
+                word_wrap: note.wordWrap ?? true
             })
             .eq('id', note.id)
             .select()

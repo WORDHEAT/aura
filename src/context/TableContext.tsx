@@ -1179,7 +1179,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         setCurrentWorkspaceId(workspaceId)
         setCurrentNoteId(noteId)
         setCurrentItemType('note')
-        setSelectedTables([noteId])  // Clear table selection and select note
+        setSelectedTables([])  // Clear table selection when switching to note
         setCurrentTableId('')  // Clear current table
     }
 
