@@ -124,20 +124,20 @@ const TableContext = createContext<TableContextType | undefined>(undefined)
 
 export function TableProvider({ children }: { children: React.ReactNode }) {
     const getDefaultWorkspaces = (): Workspace[] => [{
-        id: '1',
+        id: crypto.randomUUID(),
         name: 'My Workspace',
         createdAt: new Date().toISOString(),
         isExpanded: true,
         tables: [{
-            id: '1-1',
+            id: crypto.randomUUID(),
             name: 'My First Table',
             columns: [
-                { id: '1', title: 'Name', type: 'text' },
-                { id: '2', title: 'Status', type: 'text' },
-                { id: '3', title: 'Due Date', type: 'reminder' },
+                { id: crypto.randomUUID(), title: 'Name', type: 'text' },
+                { id: crypto.randomUUID(), title: 'Status', type: 'text' },
+                { id: crypto.randomUUID(), title: 'Due Date', type: 'reminder' },
             ],
             rows: [
-                { id: '1', cells: { '1': 'Project Alpha', '2': 'In Progress' } },
+                { id: crypto.randomUUID(), cells: {} },
             ],
         }],
         notes: []
@@ -223,8 +223,9 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         
         try {
             const cloudWorkspaces = await syncService.fetchWorkspaces()
+            
             if (cloudWorkspaces.length > 0) {
-                // Merge with local workspaces or replace
+                // Cloud has data - use cloud data
                 setWorkspaces(cloudWorkspaces)
                 // Update current workspace/table if needed
                 if (!cloudWorkspaces.some(ws => ws.id === currentWorkspaceId)) {
@@ -233,6 +234,26 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                         setCurrentTableId(cloudWorkspaces[0].tables[0].id)
                     }
                 }
+                console.log('✅ Loaded from cloud:', cloudWorkspaces.length, 'workspaces')
+            } else {
+                // Cloud is empty - push current local data to cloud
+                console.log('☁️ Cloud is empty, pushing local data...')
+                for (const workspace of workspaces) {
+                    try {
+                        await syncService.createWorkspace(workspace)
+                        // Create tables
+                        for (let i = 0; i < workspace.tables.length; i++) {
+                            await syncService.createTable(workspace.id, workspace.tables[i], i)
+                        }
+                        // Create notes
+                        for (let i = 0; i < workspace.notes.length; i++) {
+                            await syncService.createNote(workspace.id, workspace.notes[i], i)
+                        }
+                    } catch (err) {
+                        console.error('Error pushing workspace to cloud:', err)
+                    }
+                }
+                console.log('✅ Pushed local data to cloud')
             }
         } catch (error) {
             console.error('Sync error:', error)
@@ -240,7 +261,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         } finally {
             setIsSyncing(false)
         }
-    }, [isAuthenticated, user, currentWorkspaceId])
+    }, [isAuthenticated, user, currentWorkspaceId, workspaces])
 
     // Set workspace visibility
     const setWorkspaceVisibility = useCallback(async (workspaceId: string, visibility: WorkspaceVisibility) => {
