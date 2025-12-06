@@ -115,29 +115,33 @@ export function SortableRow({
         >
             {/* Left Gutter Column for Actions */}
             <td 
-                className={`w-[60px] px-1 border-r border-[#373737] bg-[#202020] sticky left-0 z-40 text-center group/gutter relative ${settings.compactMode ? 'py-1' : 'py-2'}`}
+                className={`w-[60px] px-1 border-r border-[#373737] bg-[#202020] sticky left-0 z-40 text-center group/gutter relative cursor-grab active:cursor-grabbing ${settings.compactMode ? 'py-1' : 'py-2'}`}
+                {...attributes}
+                {...listeners}
             >
                 {/* Overlay for Row Color on Sticky Column */}
                 {row.rowColor && (
                     <div className={`absolute inset-0 pointer-events-none ${row.rowColor}`} />
                 )}
 
-                {/* Mobile: Drag handle + action buttons */}
+                {/* Mobile: Visible action buttons */}
                 <div className="sm:hidden flex items-center justify-center gap-0.5 relative z-20">
-                    <div
-                        {...attributes}
-                        {...listeners}
-                        className="p-1 text-[#6b6b6b] cursor-grab active:cursor-grabbing touch-none"
-                        title="Drag to reorder"
-                    >
+                    <div className="p-1 text-[#6b6b6b] touch-none" title="Drag to reorder">
                         <GripVertical size={14} />
                     </div>
                     <button
                         onClick={(e) => { e.stopPropagation(); onAddSiblingRow(row.id) }}
-                        className="text-[#6b6b6b] hover:text-blue-400 p-1 rounded"
+                        className="text-[#6b6b6b] active:text-blue-400 p-1 rounded"
                         title="Add row below"
                     >
                         <Plus size={14} />
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onAddSubRow(row.id) }}
+                        className="text-[#6b6b6b] active:text-blue-400 p-1 rounded"
+                        title="Add sub-row"
+                    >
+                        <CornerDownRight size={14} />
                     </button>
                     <button
                         onClick={(e) => onActionMenuClick(e, row.id)}
@@ -148,16 +152,11 @@ export function SortableRow({
                     </button>
                 </div>
                 
-                {/* Desktop: Entire cell is draggable, action buttons show on hover */}
-                <div 
-                    className="hidden sm:block absolute inset-0 cursor-grab active:cursor-grabbing z-10"
-                    {...attributes}
-                    {...listeners}
-                />
+                {/* Desktop: Action buttons show on hover */}
                 <div className={`hidden sm:flex absolute inset-0 z-20 items-center justify-center gap-0.5 bg-[#202020] transition-opacity duration-200 ${
                     activeActionMenu === row.id
-                        ? 'opacity-100 pointer-events-auto' 
-                        : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
+                        ? 'opacity-100' 
+                        : 'opacity-0 group-hover:opacity-100'
                 }`}>
                     <button
                         onClick={(e) => { e.stopPropagation(); onAddSiblingRow(row.id) }}
