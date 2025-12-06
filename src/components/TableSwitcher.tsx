@@ -8,6 +8,8 @@ import {
     pointerWithin,
     KeyboardSensor,
     PointerSensor,
+    MouseSensor,
+    TouchSensor,
     useSensor,
     useSensors,
     useDroppable,
@@ -532,8 +534,14 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: Tab
         moveNoteToWorkspace,
     } = useTableContext()
     
-    // DnD Sensors
+    // DnD Sensors - use both Mouse and Touch for better Electron compatibility
     const sensors = useSensors(
+        useSensor(MouseSensor, {
+            activationConstraint: { distance: 5 },
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: { delay: 200, tolerance: 5 },
+        }),
         useSensor(PointerSensor, {
             activationConstraint: { distance: 5 },
         }),
