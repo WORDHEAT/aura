@@ -240,16 +240,51 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             const cloudWorkspaces = await syncService.fetchWorkspaces()
             
             if (cloudWorkspaces.length > 0) {
-                // Cloud has data - use cloud data
-                setWorkspaces(cloudWorkspaces)
+                // Merge cloud and local data (keep local items that aren't in cloud yet)
+                const mergedWorkspaces = cloudWorkspaces.map(cloudWs => {
+                    const localWs = workspaces.find(ws => ws.id === cloudWs.id)
+                    if (!localWs) return cloudWs
+                    
+                    // Find local tables/notes that aren't in cloud yet
+                    const cloudTableIds = new Set(cloudWs.tables.map(t => t.id))
+                    const cloudNoteIds = new Set(cloudWs.notes.map(n => n.id))
+                    
+                    const localOnlyTables = localWs.tables.filter(t => !cloudTableIds.has(t.id))
+                    const localOnlyNotes = localWs.notes.filter(n => !cloudNoteIds.has(n.id))
+                    
+                    if (localOnlyTables.length > 0 || localOnlyNotes.length > 0) {
+                        console.log(`🔀 Merging ${localOnlyTables.length} local tables and ${localOnlyNotes.length} local notes`)
+                    }
+                    
+                    return {
+                        ...cloudWs,
+                        tables: [...cloudWs.tables, ...localOnlyTables],
+                        notes: [...cloudWs.notes, ...localOnlyNotes],
+                        isExpanded: localWs.isExpanded ?? cloudWs.isExpanded
+                    }
+                })
+                
+                // Also add local-only workspaces that don't exist in cloud
+                const cloudWsIds = new Set(cloudWorkspaces.map(ws => ws.id))
+                const localOnlyWorkspaces = workspaces.filter(ws => !cloudWsIds.has(ws.id))
+                
+                const finalWorkspaces = [...mergedWorkspaces, ...localOnlyWorkspaces]
+                
+                setWorkspaces(finalWorkspaces)
+                
                 // Update current workspace/table if needed
-                if (!cloudWorkspaces.some(ws => ws.id === currentWorkspaceId)) {
-                    setCurrentWorkspaceId(cloudWorkspaces[0].id)
-                    if (cloudWorkspaces[0].tables.length > 0) {
-                        setCurrentTableId(cloudWorkspaces[0].tables[0].id)
+                if (!finalWorkspaces.some(ws => ws.id === currentWorkspaceId)) {
+                    setCurrentWorkspaceId(finalWorkspaces[0].id)
+                    if (finalWorkspaces[0].tables.length > 0) {
+                        setCurrentTableId(finalWorkspaces[0].tables[0].id)
                     }
                 }
-                console.log('✅ Loaded from cloud:', cloudWorkspaces.length, 'workspaces')
+                console.log('✅ Merged cloud + local:', finalWorkspaces.length, 'workspaces')
+                
+                // Push any local-only items to cloud
+                if (localOnlyWorkspaces.length > 0) {
+                    hasPendingChangesRef.current = true
+                }
             } else {
                 // Cloud is empty - push current local data to cloud
                 console.log('☁️ Cloud is empty, pushing local data...')
