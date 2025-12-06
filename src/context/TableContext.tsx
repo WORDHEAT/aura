@@ -263,9 +263,12 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     // Start with local workspaces (preserves local edits)
                     const mergedWorkspaces = currentWorkspaces
                         .filter(localWs => {
-                            // Keep local workspace if it exists in cloud OR is new (local-only)
-                            // Remove if it was deleted from cloud by another device
-                            return cloudWsIds.has(localWs.id) || !initialSyncDoneRef.current
+                            // Keep if exists in cloud (shared workspace)
+                            if (cloudWsIds.has(localWs.id)) return true
+                            // Keep if it's a new local workspace (never synced - no ownerId)
+                            // Only remove if it was synced before but now deleted from cloud
+                            if (!localWs.ownerId) return true // New, never synced
+                            return false // Was synced, now deleted from cloud
                         })
                         .map(localWs => {
                             const cloudWs = cloudWorkspaces.find(ws => ws.id === localWs.id)
@@ -439,10 +442,11 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const isInitialLoadRef = useRef(true)
 
-    // Push changes to cloud (debounced)
-    const pushToCloud = useCallback(async (workspacesToPush: Workspace[]) => {
-        if (!isAuthenticated || !user) return
+    // Push changes to cloud (debounced) - returns true if ALL operations succeeded
+    const pushToCloud = useCallback(async (workspacesToPush: Workspace[]): Promise<boolean> => {
+        if (!isAuthenticated || !user) return false
         
+        let allSucceeded = true
         try {
             // Get existing cloud workspace IDs
             const cloudWorkspaces = await syncService.fetchWorkspaces()
@@ -466,7 +470,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                         }
                     } catch (createError) {
                         console.error('❌ Failed to create workspace:', workspace.id, createError)
-                        // Skip this workspace's tables/notes since workspace failed
+                        allSucceeded = false
                         continue
                     }
                 } else {
@@ -475,7 +479,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                         await syncService.updateWorkspace(workspace)
                     } catch (updateError) {
                         console.error('❌ Failed to update workspace:', workspace.id, updateError)
-                        // Skip this workspace's tables/notes if update failed
+                        allSucceeded = false
                         continue
                     }
                     
@@ -505,6 +509,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                                 console.log('✅ Table deleted successfully:', cloudTableId)
                             } catch (deleteError) {
                                 console.error('❌ Failed to delete table:', cloudTableId, deleteError)
+                                allSucceeded = false
                             }
                         }
                     }
@@ -528,6 +533,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                                 console.log('✅ Note deleted successfully:', cloudNoteId)
                             } catch (deleteError) {
                                 console.error('❌ Failed to delete note:', cloudNoteId, deleteError)
+                                allSucceeded = false
                             }
                         }
                     }
@@ -543,6 +549,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                         console.log('✅ Workspace deleted successfully:', cloudWs.id)
                     } catch (deleteError) {
                         console.error('❌ Failed to delete workspace:', cloudWs.id, deleteError)
+                        allSucceeded = false
                     }
                 }
             }
@@ -550,8 +557,10 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             // Mark that we just pushed to ignore incoming real-time notifications
             lastSyncTimeRef.current = Date.now()
             console.log('✅ Synced to cloud - local:', workspacesToPush.length, 'cloud:', cloudWorkspaces.length)
+            return allSucceeded
         } catch (error) {
             console.error('Push to cloud error:', error)
+            return false
         }
     }, [isAuthenticated, user])
 
@@ -594,9 +603,11 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         syncTimeoutRef.current = setTimeout(async () => {
             // Use ref to get latest workspaces (not stale closure)
             const latestWorkspaces = workspacesRef.current
-            await pushToCloud(latestWorkspaces)
-            // Clear pending changes flag after successful push
-            hasPendingChangesRef.current = false
+            const success = await pushToCloud(latestWorkspaces)
+            // Only clear pending flag if ALL operations succeeded
+            if (success) {
+                hasPendingChangesRef.current = false
+            }
         }, 1500)
 
         return () => {
