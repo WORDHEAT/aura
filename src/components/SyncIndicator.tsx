@@ -57,7 +57,7 @@ export function SyncIndicator() {
     return (
         <button
             onClick={() => syncWorkspaces()}
-            className="flex items-center gap-1.5 px-2 py-1 text-xs text-green-400 hover:bg-green-500/10 rounded-md transition-colors"
+            className="flex items-center gap-1.5 px-2 py-1 text-xs text-green-400 hover:bg-green-500/10 rounded-md transition-colors group"
             title="Cloud sync active. Click to refresh."
         >
             <Cloud size={14} />

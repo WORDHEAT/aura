@@ -76,7 +76,7 @@ export function NoteEditor({ note }: NoteEditorProps) {
     // Only update if user is not currently typing (no pending save timeout)
     useEffect(() => {
         if (!saveTimeoutRef.current) {
-            setContent(note.content)
+            setContent(note.content) // eslint-disable-line react-hooks/set-state-in-effect
         }
     }, [note.content, note.id])
 
@@ -361,7 +361,7 @@ export function NoteEditor({ note }: NoteEditorProps) {
     // Scroll to first result when search query changes
     useEffect(() => {
         if (computedSearchResults.length > 0 && searchQuery) {
-            setCurrentSearchIndex(0)
+            setCurrentSearchIndex(0) // eslint-disable-line react-hooks/set-state-in-effect
             scrollToSearchResult(0)
         }
     }, [searchQuery, computedSearchResults.length, scrollToSearchResult])
