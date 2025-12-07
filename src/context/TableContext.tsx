@@ -355,119 +355,45 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const pushToCloud = useCallback(async (workspacesToPush: Workspace[]): Promise<boolean> => {
         if (!isAuthenticated || !user) return false
         
-        let allSucceeded = true
         try {
-            // Get existing cloud workspace IDs
-            const cloudWorkspaces = await syncService.fetchWorkspaces()
-            const cloudWorkspaceIds = new Set(cloudWorkspaces.map(ws => ws.id))
-            const localWorkspaceIds = new Set(workspacesToPush.map(ws => ws.id))
-
-            // Create or update workspaces
-            for (let wsIndex = 0; wsIndex < workspacesToPush.length; wsIndex++) {
-                const workspace = workspacesToPush[wsIndex]
-                if (!cloudWorkspaceIds.has(workspace.id)) {
-                    // New workspace - create it first
-                    try {
-                        await syncService.createWorkspace(workspace, wsIndex)
-                        console.log('✅ Created workspace:', workspace.id, workspace.name)
-                        
-                        // Only create tables/notes if workspace creation succeeded
-                        for (let i = 0; i < workspace.tables.length; i++) {
-                            await syncService.createTable(workspace.id, workspace.tables[i], i)
-                        }
-                        for (let i = 0; i < workspace.notes.length; i++) {
-                            await syncService.createNote(workspace.id, workspace.notes[i], i)
-                        }
-                    } catch (createError) {
-                        console.error('❌ Failed to create workspace:', workspace.id, createError)
-                        allSucceeded = false
-                        continue
-                    }
-                } else {
-                    // Existing workspace - update it (with position)
-                    try {
-                        await syncService.updateWorkspace(workspace, wsIndex)
-                    } catch (updateError) {
-                        console.error('❌ Failed to update workspace:', workspace.id, updateError)
-                        allSucceeded = false
-                        continue
-                    }
-                    
-                    // Get cloud tables/notes for this workspace to detect deletions
-                    const cloudWs = cloudWorkspaces.find(cw => cw.id === workspace.id)
-                    const cloudTableIds = new Set(cloudWs?.tables.map(t => t.id) || [])
-                    const cloudNoteIds = new Set(cloudWs?.notes.map(n => n.id) || [])
-                    const localTableIds = new Set(workspace.tables.map(t => t.id))
-                    const localNoteIds = new Set(workspace.notes.map(n => n.id))
-                    
-                    // Update or create tables (with position for reordering)
-                    for (let tableIdx = 0; tableIdx < workspace.tables.length; tableIdx++) {
-                        const table = workspace.tables[tableIdx]
-                        try {
-                            await syncService.updateTable(table, tableIdx)
-                        } catch {
-                            // Table might not exist, create it
-                            await syncService.createTable(workspace.id, table, tableIdx)
-                        }
-                    }
-                    
-                    // Delete removed tables
-                    for (const cloudTableId of cloudTableIds) {
-                        if (!localTableIds.has(cloudTableId)) {
-                            console.log('🗑️ Deleting table from cloud:', cloudTableId)
-                            try {
-                                await syncService.deleteTable(cloudTableId)
-                                console.log('✅ Table deleted successfully:', cloudTableId)
-                            } catch (deleteError) {
-                                console.error('❌ Failed to delete table:', cloudTableId, deleteError)
-                                allSucceeded = false
-                            }
-                        }
-                    }
-                    
-                    // Update or create notes (with position for reordering)
-                    for (let noteIdx = 0; noteIdx < workspace.notes.length; noteIdx++) {
-                        const note = workspace.notes[noteIdx]
-                        try {
-                            await syncService.updateNote(note, noteIdx)
-                        } catch {
-                            // Note might not exist, create it
-                            await syncService.createNote(workspace.id, note, noteIdx)
-                        }
-                    }
-                    
-                    // Delete removed notes
-                    for (const cloudNoteId of cloudNoteIds) {
-                        if (!localNoteIds.has(cloudNoteId)) {
-                            console.log('🗑️ Deleting note from cloud:', cloudNoteId)
-                            try {
-                                await syncService.deleteNote(cloudNoteId)
-                                console.log('✅ Note deleted successfully:', cloudNoteId)
-                            } catch (deleteError) {
-                                console.error('❌ Failed to delete note:', cloudNoteId, deleteError)
-                                allSucceeded = false
-                            }
-                        }
-                    }
+            // Use Promise.all for parallel updates where safe
+            const updatePromises: Promise<void>[] = []
+            
+            for (const workspace of workspacesToPush) {
+                const isOwner = workspace.ownerId === user.id
+                
+                // Only owners can create/update/delete workspaces
+                if (isOwner) {
+                    updatePromises.push(
+                        syncService.updateWorkspace(workspace, workspacesToPush.indexOf(workspace))
+                            .catch(() => syncService.createWorkspace(workspace, workspacesToPush.indexOf(workspace)))
+                    )
+                }
+                
+                // Update tables in parallel (owners and team members with edit rights)
+                for (let i = 0; i < workspace.tables.length; i++) {
+                    const table = workspace.tables[i]
+                    updatePromises.push(
+                        syncService.updateTable(table, i)
+                            .catch(() => syncService.createTable(workspace.id, table, i))
+                            .catch(err => console.error('Table sync failed:', err))
+                    )
+                }
+                
+                // Update notes in parallel
+                for (let i = 0; i < workspace.notes.length; i++) {
+                    const note = workspace.notes[i]
+                    updatePromises.push(
+                        syncService.updateNote(note, i)
+                            .catch(() => syncService.createNote(workspace.id, note, i))
+                            .catch(err => console.error('Note sync failed:', err))
+                    )
                 }
             }
-
-            // Delete removed workspaces
-            for (const cloudWs of cloudWorkspaces) {
-                if (!localWorkspaceIds.has(cloudWs.id)) {
-                    console.log('🗑️ Deleting workspace from cloud:', cloudWs.id, cloudWs.name)
-                    try {
-                        await syncService.deleteWorkspace(cloudWs.id)
-                        console.log('✅ Workspace deleted successfully:', cloudWs.id)
-                    } catch (deleteError) {
-                        console.error('❌ Failed to delete workspace:', cloudWs.id, deleteError)
-                        allSucceeded = false
-                    }
-                }
-            }
-
-            console.log('✅ Synced to cloud - local:', workspacesToPush.length, 'cloud:', cloudWorkspaces.length)
-            return allSucceeded
+            
+            await Promise.all(updatePromises)
+            console.log('✅ Push complete')
+            return true
         } catch (error) {
             console.error('Push to cloud error:', error)
             return false
