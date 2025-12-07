@@ -39,6 +39,15 @@ export function NoteEditor({ note }: NoteEditorProps) {
     const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const lineNumbersRef = useRef<HTMLDivElement>(null)
 
+    // Sync local content when note.content changes from external source (cloud sync)
+    // Only update if user is not currently typing (no pending save timeout)
+    useEffect(() => {
+        if (!saveTimeoutRef.current) {
+            setContent(note.content)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [note.content, note.id])
+
     // Auto-save with debounce - using onChange handler directly
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const newContent = e.target.value
