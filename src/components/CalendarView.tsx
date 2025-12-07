@@ -99,7 +99,7 @@ export function CalendarView({ isOpen, onClose }: CalendarViewProps) {
             />
             
             {/* Modal */}
-            <div className="relative bg-[#202020] border border-[#373737] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+            <div className="relative bg-[#202020] border border-[#373737] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 fade-in duration-200">
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-[#373737]">
                     <div className="flex items-center gap-3">
@@ -143,9 +143,10 @@ export function CalendarView({ isOpen, onClose }: CalendarViewProps) {
 
                         {/* Day Headers */}
                         <div className="grid grid-cols-7 gap-1 mb-2">
-                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                                <div key={day} className="text-center text-xs font-medium text-[#6b6b6b] py-2">
-                                    {day}
+                            {[['S', 'Sun'], ['M', 'Mon'], ['T', 'Tue'], ['W', 'Wed'], ['T', 'Thu'], ['F', 'Fri'], ['S', 'Sat']].map(([short, full]) => (
+                                <div key={full} className="text-center text-xs font-medium text-[#6b6b6b] py-2">
+                                    <span className="sm:hidden">{short}</span>
+                                    <span className="hidden sm:inline">{full}</span>
                                 </div>
                             ))}
                         </div>
@@ -168,7 +169,7 @@ export function CalendarView({ isOpen, onClose }: CalendarViewProps) {
                                         key={day.toISOString()}
                                         onClick={() => setSelectedDate(day)}
                                         className={`
-                                            aspect-square rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all text-sm
+                                            aspect-square rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all text-xs sm:text-sm min-h-[40px] sm:min-h-0
                                             ${isSelected 
                                                 ? 'bg-blue-500 text-white' 
                                                 : isCurrentDay
@@ -200,7 +201,7 @@ export function CalendarView({ isOpen, onClose }: CalendarViewProps) {
                     </div>
 
                     {/* Selected Date Details */}
-                    <div className="lg:w-80 border-t lg:border-t-0 lg:border-l border-[#373737] p-4 bg-[#191919]/50">
+                    <div className="lg:w-80 border-t lg:border-t-0 lg:border-l border-[#373737] p-4 bg-[#191919]/50 max-h-[40vh] lg:max-h-none overflow-y-auto">
                         <h4 className="text-sm font-medium text-[#9b9b9b] mb-3">
                             {selectedDate 
                                 ? format(selectedDate, 'EEEE, MMMM d, yyyy')
