@@ -1025,7 +1025,7 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: Tab
     }
 
     return (
-        <div className={`bg-[#202020] border border-[#373737] rounded-xl shadow-lg flex flex-col gap-4 max-h-[300px] lg:max-h-[calc(100vh-120px)] transition-all duration-300 ${isCollapsed ? 'p-2' : 'p-4'}`}>
+        <div className={`bg-[#202020] border border-[#373737] rounded-xl shadow-lg flex flex-col gap-4 h-full max-h-full lg:max-h-[calc(100vh-120px)] transition-all duration-300 ${isCollapsed ? 'p-2' : 'p-4'}`}>
             <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
                 <button 
                     onClick={() => setIsCollapsed(!isCollapsed)}
