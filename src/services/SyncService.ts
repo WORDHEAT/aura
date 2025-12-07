@@ -110,16 +110,25 @@ export class SyncService {
             `)
             .eq('user_id', this.userId)
 
+        console.log('🔍 Member workspaces query result:', { memberWorkspaces, memberError })
+
         if (memberError) {
             console.error('Error fetching member workspaces:', memberError)
         }
 
         // Combine owned and member workspaces
+        const memberWsList = (memberWorkspaces || [])
+            .map(m => {
+                console.log('🔍 Processing member workspace:', m)
+                return m.workspaces as unknown as CloudWorkspace
+            })
+            .filter(Boolean)
+        
+        console.log('🔍 Filtered member workspaces:', memberWsList)
+
         const allCloudWorkspaces = [
             ...(ownedWorkspaces || []),
-            ...((memberWorkspaces || [])
-                .map(m => (m.workspaces as unknown as CloudWorkspace))
-                .filter(Boolean))
+            ...memberWsList
         ]
 
         // Fetch tables and notes for each workspace
