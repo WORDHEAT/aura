@@ -14,11 +14,13 @@ import { CalendarView } from './components/CalendarView'
 import { useSettings } from './context/SettingsContext'
 import { AuthModal, UserMenu } from './components/Auth'
 import { ProfileModal } from './components/ProfileModal'
+import { LandingPage } from './components/LandingPage'
 
 function App() {
   const { settings } = useSettings()
   const { workspaces, currentTable, currentNote, currentItemType, selectedTableIds, updateTable, updateTableById, updateTableColumns, updateTableAppearance, renameTable, undo, redo, canUndo, canRedo, createWorkspace, createTable, createNote, currentWorkspaceId, switchTable } = useTableContext()
-  const { signIn, signUp, signInWithGoogle, signInWithGithub } = useAuth()
+  const { isAuthenticated, signIn, signUp, signInWithGoogle, signInWithGithub } = useAuth()
+  const [hasSkippedLanding, setHasSkippedLanding] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editingTitle, setEditingTitle] = useState('')
@@ -39,6 +41,7 @@ function App() {
         NotificationService.cancelAll()
     }
   }, [settings.enableNotifications])
+
 
   // Keyboard shortcuts for undo/redo
   useEffect(() => {
@@ -101,6 +104,32 @@ function App() {
       renameTable(currentTable.id, editingTitle.trim())
     }
     setIsEditingTitle(false)
+  }
+
+  // Show landing page for non-authenticated users (unless they dismiss it)
+  if (!hasSkippedLanding && !isAuthenticated) {
+    return (
+      <>
+        <LandingPage 
+          onGetStarted={() => {
+            setHasSkippedLanding(true)
+            setIsAuthModalOpen(true)
+          }}
+          onSignIn={() => {
+            setHasSkippedLanding(true)
+            setIsAuthModalOpen(true)
+          }}
+        />
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          onSignIn={signIn}
+          onSignUp={signUp}
+          onGoogleSignIn={signInWithGoogle}
+          onGithubSignIn={signInWithGithub}
+        />
+      </>
+    )
   }
 
   return (
