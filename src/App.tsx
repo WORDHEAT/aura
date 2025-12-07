@@ -13,6 +13,7 @@ import { SettingsModal } from './components/SettingsModal'
 import { CalendarView } from './components/CalendarView'
 import { useSettings } from './context/SettingsContext'
 import { AuthModal, UserMenu } from './components/Auth'
+import { ProfileModal } from './components/ProfileModal'
 
 function App() {
   const { settings } = useSettings()
@@ -25,6 +26,7 @@ function App() {
   const [viewMode, setViewMode] = useState<'single' | 'all'>(settings.defaultView)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false)
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
 
@@ -185,6 +187,7 @@ function App() {
             <div className="hidden sm:block w-px h-6 bg-[#373737] mx-1" />
             <UserMenu 
               onOpenSettings={() => setIsSettingsOpen(true)} 
+              onOpenProfile={() => setIsProfileOpen(true)}
               onOpenAuth={() => setIsAuthModalOpen(true)} 
             />
           </div>
@@ -200,8 +203,8 @@ function App() {
             onClick={() => setIsMobileDrawerOpen(false)}
           />
           {/* Drawer */}
-          <div className="absolute left-0 top-0 bottom-0 w-[300px] bg-[#191919] border-r border-[#373737] shadow-2xl animate-in slide-in-from-left duration-300">
-            <div className="flex items-center justify-between p-4 border-b border-[#373737]">
+          <div className="absolute left-0 top-0 w-[300px] h-[100dvh] bg-[#191919] border-r border-[#373737] shadow-2xl animate-in slide-in-from-left duration-300 flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-[#373737] shrink-0">
               <h2 className="font-semibold text-[#e3e3e3]">Workspaces</h2>
               <button
                 onClick={() => setIsMobileDrawerOpen(false)}
@@ -210,7 +213,7 @@ function App() {
                 <X size={20} />
               </button>
             </div>
-            <div className="p-4 h-[calc(100%-60px)] overflow-y-auto">
+            <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
               <TableSwitcher isCollapsed={false} setIsCollapsed={() => {}} onItemSelect={() => setIsMobileDrawerOpen(false)} />
             </div>
           </div>
@@ -474,6 +477,11 @@ function App() {
       <CalendarView
         isOpen={isCalendarOpen}
         onClose={() => setIsCalendarOpen(false)}
+      />
+
+      <ProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
       />
     </div>
   )

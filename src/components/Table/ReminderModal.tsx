@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { X, Bell } from 'lucide-react'
 import { useState } from 'react'
 import { NotificationService } from '../../services/NotificationService'
 
@@ -7,9 +7,11 @@ interface ReminderModalProps {
     onClose: () => void
     onSave: (date: string) => void
     currentValue?: string
+    tableName?: string
+    userId?: string
 }
 
-export function ReminderModal({ isOpen, onClose, onSave, currentValue }: ReminderModalProps) {
+export function ReminderModal({ isOpen, onClose, onSave, currentValue, tableName, userId }: ReminderModalProps) {
     const [dateTime, setDateTime] = useState(currentValue || '')
     const [prevValue, setPrevValue] = useState(currentValue)
 
@@ -30,7 +32,11 @@ export function ReminderModal({ isOpen, onClose, onSave, currentValue }: Reminde
             const delay = reminderDate.getTime() - now.getTime()
 
             if (delay > 0) {
-                NotificationService.schedule('Aura Reminder', reminderDate)
+                const title = tableName ? `Reminder: ${tableName}` : 'Aura Reminder'
+                NotificationService.schedule(title, reminderDate, undefined, {
+                    tableName,
+                    userId
+                })
             }
         }
         onClose()
@@ -60,9 +66,17 @@ export function ReminderModal({ isOpen, onClose, onSave, currentValue }: Reminde
                         onChange={(e) => setDateTime(e.target.value)}
                         className="w-full bg-[#191919] border border-[#373737] text-[#e3e3e3] px-3 py-3 sm:py-2.5 rounded-md text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
                     />
-                    <p className="mt-3 text-xs text-[#6b6b6b] leading-relaxed">
-                        You'll receive a browser notification at the specified time
-                    </p>
+                    <div className="mt-3 p-3 bg-[#2a2a2a] rounded-lg">
+                        <p className="text-xs text-[#9b9b9b] flex items-center gap-2">
+                            <Bell size={14} className="text-blue-400" />
+                            You'll receive a browser notification at the specified time
+                        </p>
+                        {userId && (
+                            <p className="mt-2 text-xs text-blue-400">
+                                + Telegram notification (if configured in Profile)
+                            </p>
+                        )}
+                    </div>
                 </div>
 
                 <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 px-4 sm:px-5 py-4 border-t border-[#373737] sticky bottom-0 bg-[#202020]">

@@ -1,9 +1,13 @@
+import { TelegramService } from './TelegramService'
+
 const REMINDERS_KEY = 'aura-scheduled-reminders'
 
 interface ScheduledReminder {
     id: string
     title: string
     time: string // ISO string
+    tableName?: string
+    userId?: string
 }
 
 // Track active timeouts so we can clear them if needed
@@ -25,7 +29,7 @@ export const NotificationService = {
         }
     },
 
-    schedule: (title: string, time: Date, id?: string) => {
+    schedule: (title: string, time: Date, id?: string, options?: { tableName?: string; userId?: string }) => {
         const now = new Date().getTime()
         const target = time.getTime()
         const delay = target - now
@@ -38,8 +42,24 @@ export const NotificationService = {
                 clearTimeout(activeTimeouts.get(reminderId))
             }
 
-            const timeoutId = setTimeout(() => {
+            const timeoutId = setTimeout(async () => {
+                // Send browser notification
                 NotificationService.send(title)
+                
+                // Send Telegram notification if user has it configured
+                if (options?.userId) {
+                    try {
+                        await TelegramService.sendReminder(
+                            options.userId,
+                            title,
+                            options.tableName || 'Table',
+                            time
+                        )
+                    } catch (err) {
+                        console.error('Telegram notification failed:', err)
+                    }
+                }
+                
                 // Remove from storage after firing
                 NotificationService.removeReminder(reminderId)
                 activeTimeouts.delete(reminderId)
@@ -48,7 +68,13 @@ export const NotificationService = {
             activeTimeouts.set(reminderId, timeoutId)
 
             // Save to localStorage for persistence
-            NotificationService.saveReminder({ id: reminderId, title, time: time.toISOString() })
+            NotificationService.saveReminder({ 
+                id: reminderId, 
+                title, 
+                time: time.toISOString(),
+                tableName: options?.tableName,
+                userId: options?.userId
+            })
             console.log(`Reminder scheduled for ${time.toLocaleTimeString()}`)
             return reminderId
         }
@@ -94,7 +120,12 @@ export const NotificationService = {
             const target = new Date(reminder.time).getTime()
             if (target > now) {
                 // Re-schedule if still in the future
-                NotificationService.schedule(reminder.title, new Date(reminder.time), reminder.id)
+                NotificationService.schedule(
+                    reminder.title, 
+                    new Date(reminder.time), 
+                    reminder.id,
+                    { tableName: reminder.tableName, userId: reminder.userId }
+                )
             } else {
                 // Remove expired reminders
                 NotificationService.removeReminder(reminder.id)

@@ -8,6 +8,9 @@ export interface AppSettings {
     enableNotifications: boolean
     showGridLines: boolean
     zebraStriping: boolean
+    fontSize: 'small' | 'medium' | 'large'
+    confirmBeforeDelete: boolean
+    defaultNoteView: 'edit' | 'split' | 'preview'
 }
 
 interface SettingsContextType {
@@ -23,6 +26,9 @@ const defaultSettings: AppSettings = {
     enableNotifications: true,
     showGridLines: true,
     zebraStriping: false,
+    fontSize: 'medium',
+    confirmBeforeDelete: true,
+    defaultNoteView: 'edit',
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined)

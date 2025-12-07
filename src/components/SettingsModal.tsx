@@ -1,4 +1,4 @@
-import { X, LayoutTemplate, LayoutList, Bell, Maximize2, Minimize2, Grid, Rows } from 'lucide-react'
+import { X, LayoutTemplate, LayoutList, Bell, Maximize2, Minimize2, Grid, Rows, Type, Trash2, Eye, Edit3, FileText } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useSettings } from '../context/SettingsContext'
 import { format } from 'date-fns'
@@ -164,6 +164,111 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     }`}
                                 />
                             </button>
+                        </div>
+
+                        <div className="flex items-center justify-between px-3 py-2 bg-[#252525] border border-[#373737] rounded-lg">
+                            <div className="flex items-center gap-3">
+                                <Trash2 size={18} className={settings.confirmBeforeDelete ? "text-blue-400" : "text-[#9b9b9b]"} />
+                                <div className="flex flex-col">
+                                    <span className="text-sm text-[#e3e3e3]">Confirm Delete</span>
+                                    <span className="text-xs text-[#6b6b6b]">Ask before deleting items</span>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => updateSettings({ confirmBeforeDelete: !settings.confirmBeforeDelete })}
+                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                                    settings.confirmBeforeDelete ? 'bg-blue-500' : 'bg-[#373737]'
+                                }`}
+                            >
+                                <span
+                                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                        settings.confirmBeforeDelete ? 'translate-x-4.5' : 'translate-x-1'
+                                    }`}
+                                />
+                            </button>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm text-[#e3e3e3]">Default Note View</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                <button
+                                    onClick={() => updateSettings({ defaultNoteView: 'edit' })}
+                                    className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border text-xs transition-all ${
+                                        settings.defaultNoteView === 'edit'
+                                            ? 'bg-blue-500/10 border-blue-500/50 text-blue-400'
+                                            : 'bg-[#252525] border-[#373737] text-[#9b9b9b] hover:border-[#555] hover:text-[#e3e3e3]'
+                                    }`}
+                                >
+                                    <Edit3 size={14} />
+                                    <span>Edit</span>
+                                </button>
+                                <button
+                                    onClick={() => updateSettings({ defaultNoteView: 'split' })}
+                                    className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border text-xs transition-all ${
+                                        settings.defaultNoteView === 'split'
+                                            ? 'bg-blue-500/10 border-blue-500/50 text-blue-400'
+                                            : 'bg-[#252525] border-[#373737] text-[#9b9b9b] hover:border-[#555] hover:text-[#e3e3e3]'
+                                    }`}
+                                >
+                                    <FileText size={14} />
+                                    <span>Split</span>
+                                </button>
+                                <button
+                                    onClick={() => updateSettings({ defaultNoteView: 'preview' })}
+                                    className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border text-xs transition-all ${
+                                        settings.defaultNoteView === 'preview'
+                                            ? 'bg-blue-500/10 border-blue-500/50 text-blue-400'
+                                            : 'bg-[#252525] border-[#373737] text-[#9b9b9b] hover:border-[#555] hover:text-[#e3e3e3]'
+                                    }`}
+                                >
+                                    <Eye size={14} />
+                                    <span>Preview</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Font Size Section */}
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-medium text-[#6b6b6b] uppercase tracking-wider">Typography</h3>
+                        
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Type size={16} className="text-[#6b6b6b]" />
+                                <label className="text-sm text-[#e3e3e3]">Font Size</label>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                                <button
+                                    onClick={() => updateSettings({ fontSize: 'small' })}
+                                    className={`flex items-center justify-center px-3 py-2 rounded-lg border text-xs transition-all ${
+                                        settings.fontSize === 'small'
+                                            ? 'bg-blue-500/10 border-blue-500/50 text-blue-400'
+                                            : 'bg-[#252525] border-[#373737] text-[#9b9b9b] hover:border-[#555] hover:text-[#e3e3e3]'
+                                    }`}
+                                >
+                                    <span className="text-xs">Small</span>
+                                </button>
+                                <button
+                                    onClick={() => updateSettings({ fontSize: 'medium' })}
+                                    className={`flex items-center justify-center px-3 py-2 rounded-lg border text-sm transition-all ${
+                                        settings.fontSize === 'medium'
+                                            ? 'bg-blue-500/10 border-blue-500/50 text-blue-400'
+                                            : 'bg-[#252525] border-[#373737] text-[#9b9b9b] hover:border-[#555] hover:text-[#e3e3e3]'
+                                    }`}
+                                >
+                                    <span>Medium</span>
+                                </button>
+                                <button
+                                    onClick={() => updateSettings({ fontSize: 'large' })}
+                                    className={`flex items-center justify-center px-3 py-2 rounded-lg border text-base transition-all ${
+                                        settings.fontSize === 'large'
+                                            ? 'bg-blue-500/10 border-blue-500/50 text-blue-400'
+                                            : 'bg-[#252525] border-[#373737] text-[#9b9b9b] hover:border-[#555] hover:text-[#e3e3e3]'
+                                    }`}
+                                >
+                                    <span>Large</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
