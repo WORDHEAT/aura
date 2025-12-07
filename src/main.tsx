@@ -8,6 +8,7 @@ import { AuthProvider } from './context/AuthContext.tsx'
 import { TableProvider } from './context/TableContext.tsx'
 import { SettingsProvider } from './context/SettingsContext.tsx'
 import { PublicWorkspaceView } from './components/PublicWorkspaceView.tsx'
+import { SharedLinkView } from './components/SharedLinkView.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -16,6 +17,7 @@ createRoot(document.getElementById('root')!).render(
         <SettingsProvider>
           <Routes>
             <Route path="/workspace/:workspaceId" element={<PublicWorkspaceView />} />
+            <Route path="/share/:token" element={<SharedLinkView />} />
             <Route path="/*" element={
               <TableProvider>
                 <App />
