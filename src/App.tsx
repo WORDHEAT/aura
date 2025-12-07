@@ -8,13 +8,15 @@ import { NotificationService } from './services/NotificationService'
 import { useTableContext } from './context/TableContext'
 import { useAuth } from './context/AuthContext'
 import type { Row } from './components/Table/Table'
-import { LayoutList, LayoutTemplate, Settings, Undo2, Redo2, Plus, FolderPlus, FileText, Table2, Clock, Sparkles, Menu, X, Calendar } from 'lucide-react'
+import { LayoutList, LayoutTemplate, Settings, Undo2, Redo2, Plus, FolderPlus, FileText, Table2, Clock, Sparkles, Menu, X, Calendar, Trash2, Search } from 'lucide-react'
 import { SettingsModal } from './components/SettingsModal'
 import { CalendarView } from './components/CalendarView'
 import { useSettings } from './context/SettingsContext'
 import { AuthModal, UserMenu } from './components/Auth'
 import { ProfileModal } from './components/ProfileModal'
 import { LandingPage } from './components/LandingPage'
+import { TrashModal } from './components/TrashModal'
+import { SearchCommand } from './components/SearchCommand'
 
 function App() {
   const { settings } = useSettings()
@@ -31,6 +33,8 @@ function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false)
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
+  const [isTrashOpen, setIsTrashOpen] = useState(false)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
 
   // Handle notification settings and restore
   useEffect(() => {
@@ -58,6 +62,9 @@ function App() {
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault()
         redo()
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setIsSearchOpen(true)
       }
     }
 
@@ -75,9 +82,9 @@ function App() {
     )
   }
 
-  // Get all tables and notes from all workspaces
-  const allTables = workspaces.flatMap(ws => ws.tables)
-  const allNotes = workspaces.flatMap(ws => ws.notes)
+  // Get all tables and notes from all workspaces (excluding archived)
+  const allTables = workspaces.flatMap(ws => ws.tables.filter(t => !t.isArchived))
+  const allNotes = workspaces.flatMap(ws => ws.notes.filter(n => !n.isArchived))
   
   // Determine which tables and notes to show
   const activeTables = viewMode === 'all' 
@@ -200,11 +207,25 @@ function App() {
             </div>
             <div className="hidden sm:block w-px h-6 bg-[#373737] mx-1" />
             <button
+              onClick={() => setIsSearchOpen(true)}
+              className="p-1.5 sm:p-2 rounded-lg text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+              title="Search (Ctrl+K)"
+            >
+              <Search size={18} />
+            </button>
+            <button
               onClick={() => setIsCalendarOpen(true)}
               className="p-1.5 sm:p-2 rounded-lg text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
               title="Calendar"
             >
               <Calendar size={18} />
+            </button>
+            <button
+              onClick={() => setIsTrashOpen(true)}
+              className="p-1.5 sm:p-2 rounded-lg text-[#9b9b9b] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+              title="Trash"
+            >
+              <Trash2 size={18} />
             </button>
             <div className="hidden sm:flex items-center">
               <div className="w-px h-6 bg-[#373737] mx-1" />
@@ -324,6 +345,32 @@ function App() {
                     )}
 
                     <button
+                      onClick={() => { setIsSearchOpen(true); setIsMobileDrawerOpen(false) }}
+                      className="flex items-center gap-4 p-4 bg-[#2a2a2a] hover:bg-[#333] border border-[#373737] hover:border-blue-500/50 rounded-xl transition-all group"
+                    >
+                      <div className="p-3 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
+                        <Search className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-medium text-[#e3e3e3]">Search</div>
+                        <div className="text-xs text-[#6b6b6b]">Find tables and notes (Ctrl+K)</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => { setIsTrashOpen(true); setIsMobileDrawerOpen(false) }}
+                      className="flex items-center gap-4 p-4 bg-[#2a2a2a] hover:bg-[#333] border border-[#373737] hover:border-red-500/50 rounded-xl transition-all group"
+                    >
+                      <div className="p-3 bg-red-500/10 rounded-lg group-hover:bg-red-500/20 transition-colors">
+                        <Trash2 className="w-6 h-6 text-red-400" />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-medium text-[#e3e3e3]">Trash</div>
+                        <div className="text-xs text-[#6b6b6b]">View deleted items</div>
+                      </div>
+                    </button>
+
+                    <button
                       onClick={() => setIsSettingsOpen(true)}
                       className="flex items-center gap-4 p-4 bg-[#2a2a2a] hover:bg-[#333] border border-[#373737] hover:border-[#555] rounded-xl transition-all group"
                     >
@@ -366,9 +413,9 @@ function App() {
                   )}
 
                   {/* Keyboard Shortcut Hint */}
-                  <div className="mt-8 pt-6 border-t border-[#373737] text-center">
+                  <div className="mt-8 pt-6 border-t border-[#373737] text-center space-y-2">
                     <p className="text-xs text-[#4a4a4a]">
-                      <span className="text-[#6b6b6b]">Tip:</span> Use <kbd className="px-1.5 py-0.5 bg-[#2a2a2a] border border-[#373737] rounded text-[#9b9b9b]">Ctrl</kbd> + Click to select multiple items
+                      <span className="text-[#6b6b6b]">Tip:</span> Press <kbd className="px-1.5 py-0.5 bg-[#2a2a2a] border border-[#373737] rounded text-[#9b9b9b]">Ctrl</kbd> + <kbd className="px-1.5 py-0.5 bg-[#2a2a2a] border border-[#373737] rounded text-[#9b9b9b]">K</kbd> to search
                     </p>
                   </div>
                 </div>
@@ -511,6 +558,16 @@ function App() {
       <ProfileModal
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
+      />
+
+      <TrashModal
+        isOpen={isTrashOpen}
+        onClose={() => setIsTrashOpen(false)}
+      />
+
+      <SearchCommand
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
       />
     </div>
   )
