@@ -203,8 +203,8 @@ function App() {
             onClick={() => setIsMobileDrawerOpen(false)}
           />
           {/* Drawer */}
-          <div className="absolute left-0 top-0 bottom-0 w-[300px] bg-[#191919] border-r border-[#373737] shadow-2xl animate-in slide-in-from-left duration-300">
-            <div className="flex items-center justify-between p-4 border-b border-[#373737]">
+          <div className="absolute left-0 top-0 w-[300px] h-[100dvh] bg-[#191919] border-r border-[#373737] shadow-2xl animate-in slide-in-from-left duration-300 flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-[#373737] shrink-0">
               <h2 className="font-semibold text-[#e3e3e3]">Workspaces</h2>
               <button
                 onClick={() => setIsMobileDrawerOpen(false)}
@@ -213,7 +213,7 @@ function App() {
                 <X size={20} />
               </button>
             </div>
-            <div className="p-4 h-[calc(100%-60px)] overflow-y-auto">
+            <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
               <TableSwitcher isCollapsed={false} setIsCollapsed={() => {}} onItemSelect={() => setIsMobileDrawerOpen(false)} />
             </div>
           </div>
