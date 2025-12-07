@@ -51,6 +51,9 @@ export interface TableItem {
         showGridLines?: boolean
         zebraStriping?: boolean
     }
+    // Trash/Archive support
+    isArchived?: boolean
+    archivedAt?: string
 }
 
 // A note within a workspace
@@ -62,6 +65,9 @@ export interface NoteItem {
     updatedAt: string
     isMonospace?: boolean  // Toggle for code mode
     wordWrap?: boolean
+    // Trash/Archive support
+    isArchived?: boolean
+    archivedAt?: string
 }
 
 // Union type for workspace items
@@ -143,6 +149,13 @@ interface TableContextType {
     getNoteById: (noteId: string) => NoteItem | undefined
     getWorkspaceByTableId: (tableId: string) => Workspace | undefined
     getWorkspaceByNoteId: (noteId: string) => Workspace | undefined
+    // Trash/Archive
+    getArchivedItems: () => { tables: (TableItem & { workspaceId: string; workspaceName: string })[]; notes: (NoteItem & { workspaceId: string; workspaceName: string })[] }
+    restoreTable: (workspaceId: string, tableId: string) => void
+    restoreNote: (workspaceId: string, noteId: string) => void
+    permanentlyDeleteTable: (workspaceId: string, tableId: string) => void
+    permanentlyDeleteNote: (workspaceId: string, noteId: string) => void
+    emptyTrash: () => void
     // Undo/Redo
     undo: () => void
     redo: () => void
@@ -814,29 +827,32 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         const workspace = workspaces.find(w => w.id === workspaceId)
         if (!workspace) return
         
-        // Check if this is the last table and there are no notes
-        if (workspace.tables.length === 1 && workspace.notes.length === 0) {
-            alert('Cannot delete the last item in a workspace. Add a note first or delete the workspace.')
-            return
-        }
-        
-        // Track deletion for cloud sync
-        addPendingDelete('table', tableId, workspaceId)
-        setPendingOpsCount(getPendingOps().length)
-        
-        const newTables = workspace.tables.filter(t => t.id !== tableId)
+        // Archive instead of delete (soft delete)
         setWorkspacesWithHistory(workspaces.map(ws =>
-            ws.id === workspaceId ? { ...ws, tables: newTables } : ws
+            ws.id === workspaceId 
+                ? { 
+                    ...ws, 
+                    tables: ws.tables.map(t => 
+                        t.id === tableId 
+                            ? { ...t, isArchived: true, archivedAt: new Date().toISOString() } 
+                            : t
+                    ) 
+                } 
+                : ws
         ))
+        
+        // Count non-archived items for selection logic
+        const activeTables = workspace.tables.filter(t => t.id !== tableId && !t.isArchived)
+        const activeNotes = workspace.notes.filter(n => !n.isArchived)
         
         // Update selection if needed
         if (currentTableId === tableId) {
-            if (newTables.length > 0) {
-                setCurrentTableId(newTables[0].id)
-                setSelectedTables([newTables[0].id])
-            } else if (workspace.notes.length > 0) {
+            if (activeTables.length > 0) {
+                setCurrentTableId(activeTables[0].id)
+                setSelectedTables([activeTables[0].id])
+            } else if (activeNotes.length > 0) {
                 // Switch to first note if no tables left
-                setCurrentNoteId(workspace.notes[0].id)
+                setCurrentNoteId(activeNotes[0].id)
                 setCurrentItemType('note')
                 setCurrentTableId('')
                 setSelectedTables([])
@@ -1075,32 +1091,33 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         const workspace = workspaces.find(w => w.id === workspaceId)
         if (!workspace) return
         
-        // Check if this is the last note and there are no tables
-        if (workspace.notes.length === 1 && workspace.tables.length === 0) {
-            alert('Cannot delete the last item in a workspace. Add a table first or delete the workspace.')
-            return
-        }
-        
-        // Track deletion for cloud sync
-        addPendingDelete('note', noteId, workspaceId)
-        setPendingOpsCount(getPendingOps().length)
-        
+        // Archive instead of delete (soft delete)
         setWorkspacesWithHistory(workspaces.map(ws =>
             ws.id === workspaceId
-                ? { ...ws, notes: ws.notes.filter(n => n.id !== noteId) }
+                ? { 
+                    ...ws, 
+                    notes: ws.notes.map(n => 
+                        n.id === noteId 
+                            ? { ...n, isArchived: true, archivedAt: new Date().toISOString() } 
+                            : n
+                    ) 
+                }
                 : ws
         ))
         
-        // If current note was deleted, switch to a table or another note
+        // Count non-archived items for selection logic
+        const activeNotes = workspace.notes.filter(n => n.id !== noteId && !n.isArchived)
+        const activeTables = workspace.tables.filter(t => !t.isArchived)
+        
+        // If current note was deleted, switch to another note or table
         if (currentNoteId === noteId) {
-            const remainingNotes = workspace.notes.filter(n => n.id !== noteId)
-            if (remainingNotes.length > 0) {
-                setCurrentNoteId(remainingNotes[0].id)
-            } else if (workspace.tables.length > 0) {
+            if (activeNotes.length > 0) {
+                setCurrentNoteId(activeNotes[0].id)
+            } else if (activeTables.length > 0) {
                 setCurrentNoteId(null)
-                setCurrentTableId(workspace.tables[0].id)
+                setCurrentTableId(activeTables[0].id)
                 setCurrentItemType('table')
-                setSelectedTables([workspace.tables[0].id])
+                setSelectedTables([activeTables[0].id])
             }
         }
     }
@@ -1180,6 +1197,101 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
     }
 
+    // ===== TRASH/ARCHIVE FUNCTIONS =====
+    const getArchivedItems = () => {
+        const tables: (TableItem & { workspaceId: string; workspaceName: string })[] = []
+        const notes: (NoteItem & { workspaceId: string; workspaceName: string })[] = []
+        
+        workspaces.forEach(ws => {
+            ws.tables.filter(t => t.isArchived).forEach(t => {
+                tables.push({ ...t, workspaceId: ws.id, workspaceName: ws.name })
+            })
+            ws.notes.filter(n => n.isArchived).forEach(n => {
+                notes.push({ ...n, workspaceId: ws.id, workspaceName: ws.name })
+            })
+        })
+        
+        // Sort by archived date (most recent first)
+        tables.sort((a, b) => (b.archivedAt || '').localeCompare(a.archivedAt || ''))
+        notes.sort((a, b) => (b.archivedAt || '').localeCompare(a.archivedAt || ''))
+        
+        return { tables, notes }
+    }
+
+    const restoreTable = (workspaceId: string, tableId: string) => {
+        setWorkspacesWithHistory(workspaces.map(ws =>
+            ws.id === workspaceId
+                ? {
+                    ...ws,
+                    tables: ws.tables.map(t =>
+                        t.id === tableId
+                            ? { ...t, isArchived: false, archivedAt: undefined }
+                            : t
+                    )
+                }
+                : ws
+        ))
+    }
+
+    const restoreNote = (workspaceId: string, noteId: string) => {
+        setWorkspacesWithHistory(workspaces.map(ws =>
+            ws.id === workspaceId
+                ? {
+                    ...ws,
+                    notes: ws.notes.map(n =>
+                        n.id === noteId
+                            ? { ...n, isArchived: false, archivedAt: undefined }
+                            : n
+                    )
+                }
+                : ws
+        ))
+    }
+
+    const permanentlyDeleteTable = (workspaceId: string, tableId: string) => {
+        // Track deletion for cloud sync
+        addPendingDelete('table', tableId, workspaceId)
+        setPendingOpsCount(getPendingOps().length)
+        
+        setWorkspacesWithHistory(workspaces.map(ws =>
+            ws.id === workspaceId
+                ? { ...ws, tables: ws.tables.filter(t => t.id !== tableId) }
+                : ws
+        ))
+    }
+
+    const permanentlyDeleteNote = (workspaceId: string, noteId: string) => {
+        // Track deletion for cloud sync
+        addPendingDelete('note', noteId, workspaceId)
+        setPendingOpsCount(getPendingOps().length)
+        
+        setWorkspacesWithHistory(workspaces.map(ws =>
+            ws.id === workspaceId
+                ? { ...ws, notes: ws.notes.filter(n => n.id !== noteId) }
+                : ws
+        ))
+    }
+
+    const emptyTrash = () => {
+        const { tables, notes } = getArchivedItems()
+        
+        // Track all deletions for cloud sync
+        tables.forEach(t => {
+            addPendingDelete('table', t.id, t.workspaceId)
+        })
+        notes.forEach(n => {
+            addPendingDelete('note', n.id, n.workspaceId)
+        })
+        setPendingOpsCount(getPendingOps().length)
+        
+        // Remove all archived items
+        setWorkspacesWithHistory(workspaces.map(ws => ({
+            ...ws,
+            tables: ws.tables.filter(t => !t.isArchived),
+            notes: ws.notes.filter(n => !n.isArchived)
+        })))
+    }
+
     return (
         <TableContext.Provider value={{
             workspaces,
@@ -1230,6 +1342,13 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             getNoteById,
             getWorkspaceByTableId,
             getWorkspaceByNoteId,
+            // Trash/Archive
+            getArchivedItems,
+            restoreTable,
+            restoreNote,
+            permanentlyDeleteTable,
+            permanentlyDeleteNote,
+            emptyTrash,
             undo,
             redo,
             canUndo,

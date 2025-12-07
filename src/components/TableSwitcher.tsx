@@ -920,10 +920,10 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: Tab
 
                         {/* Tables with Drag & Drop - uses global DndContext */}
                         <SortableContext
-                            items={workspace.tables.map(t => t.id)}
+                            items={workspace.tables.filter(t => !t.isArchived).map(t => t.id)}
                             strategy={verticalListSortingStrategy}
                         >
-                        {workspace.tables.map((table) => (
+                        {workspace.tables.filter(t => !t.isArchived).map((table) => (
                             <SortableTableRow
                                 key={table.id}
                                 table={table}
@@ -954,14 +954,14 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: Tab
                         </SortableContext>
 
                         {/* Notes Section with Drag & Drop - uses global DndContext */}
-                        {workspace.notes.length > 0 && (
+                        {workspace.notes.filter(n => !n.isArchived).length > 0 && (
                             <div className="mt-2 pt-2 border-t border-[#373737]/50">
                                 <div className="text-[10px] uppercase tracking-wider text-[#6b6b6b] mb-1 px-1">Notes</div>
                                 <SortableContext
-                                    items={workspace.notes.map(n => n.id)}
+                                    items={workspace.notes.filter(n => !n.isArchived).map(n => n.id)}
                                     strategy={verticalListSortingStrategy}
                                 >
-                                {workspace.notes.map((note) => (
+                                {workspace.notes.filter(n => !n.isArchived).map((note) => (
                                     <SortableNoteRow
                                         key={note.id}
                                         note={note}
