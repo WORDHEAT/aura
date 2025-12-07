@@ -9,10 +9,12 @@ CREATE POLICY "Authenticated users can lookup profiles by email"
     USING (auth.uid() IS NOT NULL);
 
 -- ============================================
--- FIX 2: Allow workspace members to view the member list
--- (already exists but ensure it's there)
+-- FIX 2: Allow users to see their own workspace memberships
+-- THIS IS THE KEY FIX - without this, invited users can't see shared workspaces!
 -- ============================================
--- Already covered by "Users can view members of workspaces they belong to"
+CREATE POLICY "Users can view their own workspace memberships"
+    ON workspace_members FOR SELECT
+    USING (user_id = auth.uid());
 
 -- ============================================
 -- FIX 3: Ensure tables/notes policies allow public workspace access

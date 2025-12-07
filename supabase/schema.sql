@@ -167,6 +167,10 @@ CREATE POLICY "Workspace owners can manage members"
         )
     );
 
+CREATE POLICY "Users can view their own workspace memberships"
+    ON workspace_members FOR SELECT
+    USING (user_id = auth.uid());
+
 CREATE POLICY "Users can view members of workspaces they belong to"
     ON workspace_members FOR SELECT
     USING (
