@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import type { Column, Row } from '../components/Table/Table'
 import { useAuth } from './AuthContext'
 import { syncService } from '../services/SyncService'
-import { supabase } from '../lib/supabase'
 import { updateRowInTree, deleteRowFromTree, addSiblingToTree, addChildToRowInTree } from '../utils/treeUtils'
 
 // A single table within a workspace
@@ -212,35 +211,23 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const [isSyncing, setIsSyncing] = useState(false)
     const [syncError, setSyncError] = useState<string | null>(null)
     
-    // Track pending local changes to prevent sync from overwriting
-    const hasPendingChangesRef = useRef(false)
+    // Simple flags for sync
     const initialSyncDoneRef = useRef(false)
-    const lastSyncTimeRef = useRef<number>(0)
-    // Track if current update is from server (to avoid pushing server data back)
-    const isRemoteUpdateRef = useRef(false)
+    const isLoadingFromCloudRef = useRef(false)
     
-    // Ref to always access latest workspaces (fixes stale closure in real-time listener)
+    // Ref to always access latest workspaces
     const workspacesRef = useRef(workspaces)
     workspacesRef.current = workspaces
 
     // Set user ID for sync service when auth changes
     useEffect(() => {
         syncService.setUserId(user?.id || null)
-        // Reset sync state when user changes
         initialSyncDoneRef.current = false
-        hasPendingChangesRef.current = false
     }, [user])
 
-    // Sync workspaces from cloud - SIMPLE VERSION
-    // Only used on initial load - after that, real-time events handle updates
+    // Fetch workspaces from cloud on app load
     const syncWorkspaces = useCallback(async () => {
         if (!isAuthenticated || !user) return
-        
-        // Never sync if we have pending local changes
-        if (hasPendingChangesRef.current) {
-            console.log('⏸️ Skipping sync - have pending local changes')
-            return
-        }
         
         setIsSyncing(true)
         setSyncError(null)
@@ -250,8 +237,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             const currentWorkspaces = workspacesRef.current
             
             if (cloudWorkspaces.length > 0) {
-                // Simply take cloud data - it's the source of truth on load
-                console.log('📥 Loading', cloudWorkspaces.length, 'workspaces from cloud')
+                console.log('📥 Loaded', cloudWorkspaces.length, 'workspaces from cloud')
                 
                 // Preserve local expansion state only
                 const finalWorkspaces = cloudWorkspaces.map(cloudWs => {
@@ -262,8 +248,8 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     }
                 })
                 
-                // Mark as remote update to prevent push loop
-                isRemoteUpdateRef.current = true
+                // Mark as loading from cloud to prevent triggering push
+                isLoadingFromCloudRef.current = true
                 setWorkspaces(finalWorkspaces)
                 
                 // Update current workspace/table if needed
@@ -301,7 +287,6 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         } finally {
             setIsSyncing(false)
             initialSyncDoneRef.current = true
-            lastSyncTimeRef.current = Date.now()
         }
     }, [isAuthenticated, user, currentWorkspaceId]) // Removed workspaces - using ref instead
 
@@ -337,9 +322,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 pushToCloud(pendingWorkspaces).then(() => {
                     localStorage.removeItem('aura-pending-sync')
                     console.log('✅ Pending sync completed')
-                    // Don't sync again - our data is now in cloud
                     initialSyncDoneRef.current = true
-                    lastSyncTimeRef.current = Date.now()
                 }).catch(err => {
                     console.error('Failed to push pending sync:', err)
                     localStorage.removeItem('aura-pending-sync')
@@ -356,237 +339,11 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
     }, [isAuthenticated, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Real-time sync - EVENT-BASED approach (like Notion/Google Docs)
-    // Instead of fetching full state, apply individual changes directly
-    useEffect(() => {
-        if (!isAuthenticated || !user) return
-
-        console.log('📡 Setting up event-based real-time sync for user:', user.id)
-        
-        // Should we ignore this event?
-        // 1. If we have pending local changes (haven't pushed yet)
-        // 2. If this is our own echo (within 2 seconds of our push)
-        const shouldIgnore = () => {
-            if (hasPendingChangesRef.current) return true
-            const timeSincePush = Date.now() - lastSyncTimeRef.current
-            if (timeSincePush < 2000) return true // 2 second window for own echo
-            return false
-        }
-
-        // Helper to update workspaces without triggering push
-        const setWorkspacesFromRemote = (updater: (prev: Workspace[]) => Workspace[]) => {
-            isRemoteUpdateRef.current = true
-            setWorkspaces(updater)
-        }
-
-        // Handle NOTE changes - most common operation
-        const handleNoteChange = (payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }) => {
-            if (shouldIgnore()) return
-            
-            const { eventType } = payload
-            console.log(`📡 Note ${eventType} from another device`)
-            
-            if (eventType === 'INSERT' && payload.new) {
-                const n = payload.new
-                const newNote: NoteItem = {
-                    id: n.id as string,
-                    name: n.name as string,
-                    content: n.content as string || '',
-                    createdAt: n.created_at as string,
-                    updatedAt: n.updated_at as string,
-                    isMonospace: n.is_monospace as boolean ?? false,
-                    wordWrap: n.word_wrap as boolean ?? true
-                }
-                const workspaceId = n.workspace_id as string
-                setWorkspacesFromRemote(prev => prev.map(ws => 
-                    ws.id === workspaceId 
-                        ? { ...ws, notes: [...ws.notes.filter(x => x.id !== newNote.id), newNote] }
-                        : ws
-                ))
-            } else if (eventType === 'UPDATE' && payload.new) {
-                const n = payload.new
-                const updatedNote: NoteItem = {
-                    id: n.id as string,
-                    name: n.name as string,
-                    content: n.content as string || '',
-                    createdAt: n.created_at as string,
-                    updatedAt: n.updated_at as string,
-                    isMonospace: n.is_monospace as boolean ?? false,
-                    wordWrap: n.word_wrap as boolean ?? true
-                }
-                const newWorkspaceId = n.workspace_id as string
-                // Remove from old workspace, add to new (handles moves)
-                setWorkspacesFromRemote(prev => prev.map(ws => {
-                    // Remove from any workspace that has this note
-                    const filtered = ws.notes.filter(x => x.id !== updatedNote.id)
-                    // Add to target workspace
-                    if (ws.id === newWorkspaceId) {
-                        return { ...ws, notes: [...filtered, updatedNote] }
-                    }
-                    return { ...ws, notes: filtered }
-                }))
-            } else if (eventType === 'DELETE' && payload.old) {
-                const noteId = payload.old.id as string
-                setWorkspacesFromRemote(prev => prev.map(ws => ({
-                    ...ws,
-                    notes: ws.notes.filter(n => n.id !== noteId)
-                })))
-            }
-        }
-
-        // Handle TABLE changes
-        const handleTableChange = (payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }) => {
-            if (shouldIgnore()) return
-            
-            const { eventType } = payload
-            console.log(`📡 Table ${eventType} from another device`)
-            
-            if (eventType === 'INSERT' && payload.new) {
-                const t = payload.new
-                const newTable: TableItem = {
-                    id: t.id as string,
-                    name: t.name as string,
-                    columns: t.columns as TableItem['columns'] || [],
-                    rows: t.rows as TableItem['rows'] || [],
-                    appearance: t.appearance as TableItem['appearance'],
-                    createdAt: t.created_at as string,
-                    updatedAt: t.updated_at as string
-                }
-                const workspaceId = t.workspace_id as string
-                setWorkspacesFromRemote(prev => prev.map(ws => 
-                    ws.id === workspaceId 
-                        ? { ...ws, tables: [...ws.tables.filter(x => x.id !== newTable.id), newTable] }
-                        : ws
-                ))
-            } else if (eventType === 'UPDATE' && payload.new) {
-                const t = payload.new
-                const updatedTable: TableItem = {
-                    id: t.id as string,
-                    name: t.name as string,
-                    columns: t.columns as TableItem['columns'] || [],
-                    rows: t.rows as TableItem['rows'] || [],
-                    appearance: t.appearance as TableItem['appearance'],
-                    createdAt: t.created_at as string,
-                    updatedAt: t.updated_at as string
-                }
-                const newWorkspaceId = t.workspace_id as string
-                // Remove from old workspace, add to new (handles moves)
-                setWorkspacesFromRemote(prev => prev.map(ws => {
-                    const filtered = ws.tables.filter(x => x.id !== updatedTable.id)
-                    if (ws.id === newWorkspaceId) {
-                        return { ...ws, tables: [...filtered, updatedTable] }
-                    }
-                    return { ...ws, tables: filtered }
-                }))
-            } else if (eventType === 'DELETE' && payload.old) {
-                const tableId = payload.old.id as string
-                setWorkspacesFromRemote(prev => prev.map(ws => ({
-                    ...ws,
-                    tables: ws.tables.filter(t => t.id !== tableId)
-                })))
-            }
-        }
-
-        // Handle WORKSPACE changes
-        const handleWorkspaceChange = (payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }) => {
-            if (shouldIgnore()) return
-            
-            const { eventType } = payload
-            console.log(`📡 Workspace ${eventType} from another device`)
-            
-            if (eventType === 'INSERT' && payload.new) {
-                const w = payload.new
-                const newWorkspace: Workspace = {
-                    id: w.id as string,
-                    name: w.name as string,
-                    createdAt: w.created_at as string,
-                    tables: [],
-                    notes: [],
-                    isExpanded: w.is_expanded as boolean ?? true,
-                    ownerId: w.owner_id as string,
-                    visibility: w.visibility as WorkspaceVisibility ?? 'private',
-                    updatedAt: w.updated_at as string
-                }
-                setWorkspacesFromRemote(prev => [...prev.filter(ws => ws.id !== newWorkspace.id), newWorkspace])
-            } else if (eventType === 'UPDATE' && payload.new) {
-                const w = payload.new
-                setWorkspacesFromRemote(prev => prev.map(ws => 
-                    ws.id === w.id 
-                        ? { 
-                            ...ws, 
-                            name: w.name as string,
-                            visibility: w.visibility as WorkspaceVisibility ?? ws.visibility,
-                            updatedAt: w.updated_at as string
-                          }
-                        : ws
-                ))
-            } else if (eventType === 'DELETE' && payload.old) {
-                const workspaceId = payload.old.id as string
-                setWorkspacesFromRemote(prev => prev.filter(ws => ws.id !== workspaceId))
-            }
-        }
-
-        // Subscribe with specific event handlers
-        const channel = supabase
-            .channel('realtime-sync')
-            .on('postgres_changes', 
-                { event: 'INSERT', schema: 'public', table: 'notes' },
-                (payload) => handleNoteChange({ eventType: 'INSERT', new: payload.new, old: null })
-            )
-            .on('postgres_changes', 
-                { event: 'UPDATE', schema: 'public', table: 'notes' },
-                (payload) => handleNoteChange({ eventType: 'UPDATE', new: payload.new, old: payload.old })
-            )
-            .on('postgres_changes', 
-                { event: 'DELETE', schema: 'public', table: 'notes' },
-                (payload) => handleNoteChange({ eventType: 'DELETE', new: null, old: payload.old })
-            )
-            .on('postgres_changes', 
-                { event: 'INSERT', schema: 'public', table: 'tables' },
-                (payload) => handleTableChange({ eventType: 'INSERT', new: payload.new, old: null })
-            )
-            .on('postgres_changes', 
-                { event: 'UPDATE', schema: 'public', table: 'tables' },
-                (payload) => handleTableChange({ eventType: 'UPDATE', new: payload.new, old: payload.old })
-            )
-            .on('postgres_changes', 
-                { event: 'DELETE', schema: 'public', table: 'tables' },
-                (payload) => handleTableChange({ eventType: 'DELETE', new: null, old: payload.old })
-            )
-            .on('postgres_changes', 
-                { event: 'INSERT', schema: 'public', table: 'workspaces' },
-                (payload) => handleWorkspaceChange({ eventType: 'INSERT', new: payload.new, old: null })
-            )
-            .on('postgres_changes', 
-                { event: 'UPDATE', schema: 'public', table: 'workspaces' },
-                (payload) => handleWorkspaceChange({ eventType: 'UPDATE', new: payload.new, old: payload.old })
-            )
-            .on('postgres_changes', 
-                { event: 'DELETE', schema: 'public', table: 'workspaces' },
-                (payload) => handleWorkspaceChange({ eventType: 'DELETE', new: null, old: payload.old })
-            )
-            .subscribe((status, err) => {
-                if (status === 'SUBSCRIBED') {
-                    console.log('✅ Real-time sync connected (event-based)')
-                } else if (status === 'CHANNEL_ERROR') {
-                    console.error('❌ Real-time sync error:', err)
-                } else if (status === 'TIMED_OUT') {
-                    console.warn('⚠️ Real-time sync timed out')
-                }
-            })
-
-        return () => {
-            console.log('📡 Removing real-time sync listener')
-            supabase.removeChannel(channel)
-        }
-    }, [isAuthenticated, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
     // Track previous workspaces for change detection
     const prevWorkspacesRef = useRef<string>('')
     const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const isInitialLoadRef = useRef(true)
 
-    // Push changes to cloud (debounced) - returns true if ALL operations succeeded
+    // Push changes to cloud - returns true if ALL operations succeeded
     const pushToCloud = useCallback(async (workspacesToPush: Workspace[]): Promise<boolean> => {
         if (!isAuthenticated || !user) return false
         
@@ -701,8 +458,6 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 }
             }
 
-            // Mark that we just pushed to ignore incoming real-time notifications
-            lastSyncTimeRef.current = Date.now()
             console.log('✅ Synced to cloud - local:', workspacesToPush.length, 'cloud:', cloudWorkspaces.length)
             return allSucceeded
         } catch (error) {
@@ -711,28 +466,17 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
     }, [isAuthenticated, user])
 
-    // Auto-push changes to cloud - IMMEDIATE (300ms debounce just for rapid typing)
+    // Auto-push changes to cloud (500ms debounce to batch rapid changes)
     useEffect(() => {
-        // ALWAYS reset these flags first to avoid stale state
-        const wasRemoteUpdate = isRemoteUpdateRef.current
-        const wasInitialLoad = isInitialLoadRef.current
-        isRemoteUpdateRef.current = false
-        isInitialLoadRef.current = false
-        
-        // Skip if not authenticated
+        // Skip if not authenticated or loading from cloud
         if (!isAuthenticated || !user) {
             prevWorkspacesRef.current = JSON.stringify(workspaces)
             return
         }
         
-        // Skip initial load
-        if (wasInitialLoad) {
-            prevWorkspacesRef.current = JSON.stringify(workspaces)
-            return
-        }
-        
-        // Skip if this is a remote update (from real-time listener or sync)
-        if (wasRemoteUpdate) {
+        // Skip if we just loaded from cloud
+        if (isLoadingFromCloudRef.current) {
+            isLoadingFromCloudRef.current = false
             prevWorkspacesRef.current = JSON.stringify(workspaces)
             return
         }
@@ -743,11 +487,8 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             return
         }
         prevWorkspacesRef.current = currentWorkspacesJson
-        
-        // Mark pending and push FAST (300ms debounce just to batch rapid keystrokes)
-        hasPendingChangesRef.current = true
-        console.log('⚡ Local change detected - pushing in 300ms')
 
+        // Debounce push (500ms)
         if (syncTimeoutRef.current) {
             clearTimeout(syncTimeoutRef.current)
         }
@@ -755,14 +496,8 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         syncTimeoutRef.current = setTimeout(async () => {
             const latestWorkspaces = workspacesRef.current
             console.log('⚡ Pushing changes to cloud...')
-            const success = await pushToCloud(latestWorkspaces)
-            if (success) {
-                hasPendingChangesRef.current = false
-                console.log('✅ Push complete')
-            } else {
-                console.log('❌ Push failed')
-            }
-        }, 300) // 300ms - fast enough to feel instant, slow enough to batch typing
+            await pushToCloud(latestWorkspaces)
+        }, 500)
 
         return () => {
             if (syncTimeoutRef.current) {
@@ -771,20 +506,16 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
     }, [workspaces, pushToCloud, isAuthenticated, user])
 
-    // Flush pending changes when leaving the page (prevents losing deletions on refresh)
+    // Save pending changes when leaving the page
     useEffect(() => {
         const handleBeforeUnload = () => {
-            if (hasPendingChangesRef.current && isAuthenticated && user) {
-                // Cancel the debounced push
-                if (syncTimeoutRef.current) {
-                    clearTimeout(syncTimeoutRef.current)
-                }
-                // Synchronously push to cloud using sendBeacon for reliability
+            if (syncTimeoutRef.current && isAuthenticated && user) {
+                clearTimeout(syncTimeoutRef.current)
+                // Store in localStorage as backup - will be pushed on next load
                 const workspacesData = JSON.stringify({
                     workspaces: workspacesRef.current,
                     userId: user.id
                 })
-                // Store in localStorage as backup - will be pushed on next load
                 localStorage.setItem('aura-pending-sync', workspacesData)
                 console.log('💾 Saved pending changes for next session')
             }
@@ -1117,7 +848,6 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         if (isAuthenticated) {
             try {
                 await syncService.moveTable(tableId, toWorkspaceId)
-                lastSyncTimeRef.current = Date.now() // Mark as our own change
                 console.log('✅ Table moved and synced:', tableId, '→', toWorkspaceId)
             } catch (error) {
                 console.error('Failed to sync table move:', error)
@@ -1391,7 +1121,6 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         if (isAuthenticated) {
             try {
                 await syncService.moveNote(noteId, toWorkspaceId)
-                lastSyncTimeRef.current = Date.now() // Mark as our own change
                 console.log('✅ Note moved and synced:', noteId, '→', toWorkspaceId)
             } catch (error) {
                 console.error('Failed to sync note move:', error)
