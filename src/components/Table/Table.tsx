@@ -17,6 +17,7 @@ import { FileCell } from './cells/FileCell'
 import { CommentCell } from './cells/CommentCell'
 import { useSettings } from '../../context/SettingsContext'
 import { useTableContext } from '../../context/TableContext'
+import { useAuth } from '../../context/AuthContext'
 import { updateRowInTree } from '../../utils/treeUtils'
 import {
     DndContext, 
@@ -133,6 +134,7 @@ function SortableColumn({ column, children, width, className }: SortableColumnPr
 
 export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, appearance, onAppearanceChange }: TableProps) {
     const { settings } = useSettings()
+    const { user } = useAuth()
     const { 
         updateTableCell, 
         updateTableCellColor,
@@ -141,7 +143,8 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
         addTableRowSibling, 
         addTableRowChild, 
         addTableRow,
-        toggleTableRow 
+        toggleTableRow,
+        currentTable
     } = useTableContext()
     
     // Merge per-table appearance with global settings (per-table takes priority)
@@ -870,6 +873,8 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
                     }
                 }}
                 currentValue={reminderModal ? getVisibleRows(data.rows).find(r => r.row.id === reminderModal.rowId)?.row.cells[reminderModal.colId] : undefined}
+                tableName={currentTable?.name}
+                userId={user?.id}
             />
         </div>
     )
