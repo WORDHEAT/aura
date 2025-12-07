@@ -39,6 +39,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { useTableContext, type NoteItem } from '../context/TableContext'
 import { useSettings } from '../context/SettingsContext'
+import { NoteContextMenu, useLongPress } from './NoteContextMenu'
 
 interface NoteEditorProps {
     note: NoteItem
@@ -61,6 +62,13 @@ export function NoteEditor({ note }: NoteEditorProps) {
     const [editingTitle, setEditingTitle] = useState(note.name)
     const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>(settings.defaultNoteView)
     const [showFormatBar, setShowFormatBar] = useState(true)
+    
+    // Context menu state
+    const [contextMenu, setContextMenu] = useState<{ isOpen: boolean; position: { x: number; y: number }; selectedText: string }>({
+        isOpen: false,
+        position: { x: 0, y: 0 },
+        selectedText: ''
+    })
     
     // Undo/Redo history
     const [history, setHistory] = useState<string[]>([note.content])
@@ -219,6 +227,75 @@ export function NoteEditor({ note }: NoteEditorProps) {
             textarea.focus()
             textarea.setSelectionRange(start + 5, start + 5)
         }, 0)
+    }, [content, updateContent])
+
+    // Context menu handlers
+    const handleContextMenu = useCallback((e: React.MouseEvent) => {
+        e.preventDefault()
+        const textarea = textareaRef.current
+        const selectedText = textarea ? content.substring(textarea.selectionStart, textarea.selectionEnd) : ''
+        setContextMenu({
+            isOpen: true,
+            position: { x: e.clientX, y: e.clientY },
+            selectedText
+        })
+    }, [content])
+
+    const handleLongPress = useCallback((e: React.TouchEvent) => {
+        const touch = e.touches[0] || e.changedTouches[0]
+        const textarea = textareaRef.current
+        const selectedText = textarea ? content.substring(textarea.selectionStart, textarea.selectionEnd) : ''
+        setContextMenu({
+            isOpen: true,
+            position: { x: touch.clientX, y: touch.clientY },
+            selectedText
+        })
+    }, [content])
+
+    const longPressHandlers = useLongPress(handleLongPress, 500)
+
+    const closeContextMenu = useCallback(() => {
+        setContextMenu(prev => ({ ...prev, isOpen: false }))
+    }, [])
+
+    const handleCopy = useCallback(() => {
+        const textarea = textareaRef.current
+        if (!textarea) return
+        const selectedText = content.substring(textarea.selectionStart, textarea.selectionEnd)
+        navigator.clipboard.writeText(selectedText)
+    }, [content])
+
+    const handleCut = useCallback(() => {
+        const textarea = textareaRef.current
+        if (!textarea) return
+        const start = textarea.selectionStart
+        const end = textarea.selectionEnd
+        const selectedText = content.substring(start, end)
+        navigator.clipboard.writeText(selectedText)
+        const newContent = content.substring(0, start) + content.substring(end)
+        updateContent(newContent)
+        setTimeout(() => {
+            textarea.focus()
+            textarea.setSelectionRange(start, start)
+        }, 0)
+    }, [content, updateContent])
+
+    const handlePaste = useCallback(async () => {
+        const textarea = textareaRef.current
+        if (!textarea) return
+        try {
+            const text = await navigator.clipboard.readText()
+            const start = textarea.selectionStart
+            const end = textarea.selectionEnd
+            const newContent = content.substring(0, start) + text + content.substring(end)
+            updateContent(newContent)
+            setTimeout(() => {
+                textarea.focus()
+                textarea.setSelectionRange(start + text.length, start + text.length)
+            }, 0)
+        } catch (err) {
+            console.error('Failed to paste:', err)
+        }
     }, [content, updateContent])
 
     // Cleanup timeout on unmount
@@ -830,6 +907,8 @@ export function NoteEditor({ note }: NoteEditorProps) {
                             onChange={handleChange}
                             onScroll={handleScroll}
                             onKeyDown={handleKeyDown}
+                            onContextMenu={handleContextMenu}
+                            {...longPressHandlers}
                             className="flex-1 bg-[#191919] text-[#e3e3e3] p-3 resize-none outline-none"
                             style={{
                                 fontFamily: note.isMonospace ? 'JetBrains Mono, Consolas, monospace' : 'Inter, system-ui, sans-serif',
@@ -971,6 +1050,23 @@ export function NoteEditor({ note }: NoteEditorProps) {
                     </span>
                 </div>
             </div>
+
+            {/* Context Menu */}
+            <NoteContextMenu
+                isOpen={contextMenu.isOpen}
+                position={contextMenu.position}
+                onClose={closeContextMenu}
+                selectedText={contextMenu.selectedText}
+                onFormat={insertFormat}
+                onLinePrefix={insertLinePrefix}
+                onCopy={handleCopy}
+                onCut={handleCut}
+                onPaste={handlePaste}
+                onUndo={handleUndo}
+                onRedo={handleRedo}
+                canUndo={historyIndex > 0}
+                canRedo={historyIndex < history.length - 1}
+            />
         </div>
     )
 }
