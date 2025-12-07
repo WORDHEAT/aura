@@ -221,16 +221,12 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     // Simple flags for sync
     const initialSyncDoneRef = useRef(false)
     const isLoadingFromCloudRef = useRef(false)
-    const periodicSyncRef = useRef<ReturnType<typeof setInterval> | null>(null)
     
     // Track deleted items for sync
     const deletedItemsRef = useRef<DeletedItems>({ workspaces: [], tables: [], notes: [] })
     
     // Offline queue
     const offlineQueueRef = useRef<Workspace[]>([])
-    
-    // Track if there are pending local changes (to prevent periodic sync from overwriting)
-    const hasPendingChangesRef = useRef(false)
     
     // Ref to always access latest workspaces
     const workspacesRef = useRef(workspaces)
@@ -530,9 +526,6 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
         prevWorkspacesRef.current = currentWorkspacesJson
 
-        // Mark that we have pending changes
-        hasPendingChangesRef.current = true
-
         // Debounce push (500ms)
         if (syncTimeoutRef.current) {
             clearTimeout(syncTimeoutRef.current)
@@ -542,7 +535,6 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             const latestWorkspaces = workspacesRef.current
             console.log('⚡ Pushing changes to cloud...')
             await pushToCloud(latestWorkspaces)
-            hasPendingChangesRef.current = false
         }, 500)
 
         return () => {
@@ -552,40 +544,8 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
     }, [workspaces, pushToCloud, isAuthenticated, user])
 
-    // Periodic sync - refresh from cloud every 60 seconds to catch changes from other devices
-    useEffect(() => {
-        if (!isAuthenticated || !user) return
-        
-        // Start periodic sync after initial sync is done
-        const startPeriodicSync = () => {
-            if (periodicSyncRef.current) clearInterval(periodicSyncRef.current)
-            
-            periodicSyncRef.current = setInterval(() => {
-                // Skip if there are pending local changes to avoid overwriting them
-                if (hasPendingChangesRef.current) {
-                    console.log('🔄 Skipping periodic sync - pending local changes')
-                    return
-                }
-                if (navigator.onLine && initialSyncDoneRef.current && !isSyncing) {
-                    console.log('🔄 Periodic sync check...')
-                    syncWorkspaces()
-                }
-            }, 60000) // Every 60 seconds
-        }
-        
-        // Wait for initial sync to complete
-        const checkAndStart = setInterval(() => {
-            if (initialSyncDoneRef.current) {
-                clearInterval(checkAndStart)
-                startPeriodicSync()
-            }
-        }, 1000)
-        
-        return () => {
-            clearInterval(checkAndStart)
-            if (periodicSyncRef.current) clearInterval(periodicSyncRef.current)
-        }
-    }, [isAuthenticated, user, isSyncing, syncWorkspaces])
+    // Periodic sync disabled - users can manually click "Synced" button to refresh
+    // This prevents interrupting users while they're editing
 
     // Save pending changes when leaving the page
     useEffect(() => {
