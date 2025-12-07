@@ -106,8 +106,6 @@ export class SyncService {
             .select('workspace_id, role')
             .eq('user_id', this.userId)
 
-        console.log('🔍 Memberships found:', memberships)
-
         if (memberError) {
             console.error('Error fetching memberships:', memberError)
         }
@@ -116,14 +114,11 @@ export class SyncService {
         let memberWsList: CloudWorkspace[] = []
         if (memberships && memberships.length > 0) {
             const workspaceIds = memberships.map(m => m.workspace_id)
-            console.log('🔍 Fetching workspaces with IDs:', workspaceIds)
             
             const { data: memberWsData, error: wsError } = await supabase
                 .from('workspaces')
                 .select('*')
                 .in('id', workspaceIds)
-            
-            console.log('🔍 Member workspaces fetched:', { memberWsData, wsError })
             
             if (wsError) {
                 console.error('Error fetching member workspaces:', wsError)
