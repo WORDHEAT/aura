@@ -229,6 +229,9 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     // Offline queue
     const offlineQueueRef = useRef<Workspace[]>([])
     
+    // Track if there are pending local changes (to prevent periodic sync from overwriting)
+    const hasPendingChangesRef = useRef(false)
+    
     // Ref to always access latest workspaces
     const workspacesRef = useRef(workspaces)
     workspacesRef.current = workspaces
@@ -527,6 +530,9 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
         prevWorkspacesRef.current = currentWorkspacesJson
 
+        // Mark that we have pending changes
+        hasPendingChangesRef.current = true
+
         // Debounce push (500ms)
         if (syncTimeoutRef.current) {
             clearTimeout(syncTimeoutRef.current)
@@ -536,6 +542,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             const latestWorkspaces = workspacesRef.current
             console.log('⚡ Pushing changes to cloud...')
             await pushToCloud(latestWorkspaces)
+            hasPendingChangesRef.current = false
         }, 500)
 
         return () => {
@@ -554,6 +561,11 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             if (periodicSyncRef.current) clearInterval(periodicSyncRef.current)
             
             periodicSyncRef.current = setInterval(() => {
+                // Skip if there are pending local changes to avoid overwriting them
+                if (hasPendingChangesRef.current) {
+                    console.log('🔄 Skipping periodic sync - pending local changes')
+                    return
+                }
                 if (navigator.onLine && initialSyncDoneRef.current && !isSyncing) {
                     console.log('🔄 Periodic sync check...')
                     syncWorkspaces()
