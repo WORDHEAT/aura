@@ -1,5 +1,5 @@
 import { ChevronDown, Plus, X } from 'lucide-react'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 
 interface SelectCellProps {
     value: string
@@ -13,17 +13,23 @@ export function SelectCell({ value, onChange, options = [], onOptionsChange }: S
     const [newOption, setNewOption] = useState('')
     const [isAddingOption, setIsAddingOption] = useState(false)
     const buttonRef = useRef<HTMLButtonElement>(null)
-    const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
+    const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null)
 
-    useEffect(() => {
-        if (isOpen && buttonRef.current) {
+    const handleOpen = () => {
+        if (buttonRef.current) {
             const rect = buttonRef.current.getBoundingClientRect()
             setDropdownPosition({
                 top: rect.bottom + 4,
                 left: rect.left
             })
+            setIsOpen(true)
         }
-    }, [isOpen])
+    }
+
+    const handleClose = () => {
+        setIsOpen(false)
+        setDropdownPosition(null)
+    }
 
     const handleAddOption = () => {
         if (newOption.trim() && !options.includes(newOption.trim())) {
@@ -44,7 +50,7 @@ export function SelectCell({ value, onChange, options = [], onOptionsChange }: S
         <div className="relative w-full">
             <button
                 ref={buttonRef}
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={isOpen ? handleClose : handleOpen}
                 className="w-full text-left flex items-center justify-between gap-2 text-sm min-h-[44px] sm:min-h-0 py-2 sm:py-1"
             >
                 <span className={value ? 'text-[#e3e3e3]' : 'text-[#6b6b6b]'}>
@@ -53,9 +59,9 @@ export function SelectCell({ value, onChange, options = [], onOptionsChange }: S
                 <ChevronDown size={14} className="text-[#6b6b6b] flex-shrink-0" />
             </button>
 
-            {isOpen && (
+            {isOpen && dropdownPosition && (
                 <>
-                    <div className="fixed inset-0 z-[100]" onClick={() => setIsOpen(false)} />
+                    <div className="fixed inset-0 z-[100]" onClick={handleClose} />
                     <div className="fixed z-[101] bg-[#202020] border border-[#373737] rounded-xl shadow-2xl min-w-[200px] max-h-[280px] overflow-y-auto animate-in fade-in zoom-in-95 duration-100"
                         style={{
                             top: `${dropdownPosition.top}px`,
@@ -71,7 +77,7 @@ export function SelectCell({ value, onChange, options = [], onOptionsChange }: S
                                     <button
                                         onClick={() => {
                                             onChange(option)
-                                            setIsOpen(false)
+                                            handleClose()
                                         }}
                                         className="flex-1 text-left text-sm text-[#e3e3e3]"
                                     >
@@ -79,7 +85,7 @@ export function SelectCell({ value, onChange, options = [], onOptionsChange }: S
                                     </button>
                                     <button
                                         onClick={() => handleRemoveOption(option)}
-                                        className="opacity-0 group-hover:opacity-100 text-[#6b6b6b] hover:text-red-400 transition-all p-1"
+                                        className="sm:opacity-0 sm:group-hover:opacity-100 text-[#6b6b6b] hover:text-red-400 transition-all p-1.5"
                                     >
                                         <X size={14} />
                                     </button>

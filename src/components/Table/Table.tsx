@@ -23,6 +23,7 @@ import {
     closestCenter,
     KeyboardSensor,
     PointerSensor,
+    TouchSensor,
     useSensor,
     useSensors,
     type DragEndEvent
@@ -160,11 +161,17 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
     const actionMenuRef = useRef<HTMLDivElement>(null)
     const summaryMenuRef = useRef<HTMLDivElement>(null)
 
-    // DnD Sensors
+    // DnD Sensors - with touch support for mobile
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
                 distance: 8,
+            },
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: {
+                delay: 200,
+                tolerance: 8,
             },
         }),
         useSensor(KeyboardSensor, {

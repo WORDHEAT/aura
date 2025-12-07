@@ -8,6 +8,7 @@ export interface CloudWorkspace {
     owner_id: string
     visibility: WorkspaceVisibility
     is_expanded: boolean
+    position: number
     created_at: string
     updated_at: string
 }
@@ -67,19 +68,60 @@ const toLocalWorkspace = (
 })
 
 // Convert local workspace to cloud format
-const toCloudWorkspace = (ws: Workspace, ownerId: string): Omit<CloudWorkspace, 'created_at' | 'updated_at'> => ({
+const toCloudWorkspace = (ws: Workspace, ownerId: string, position: number): Omit<CloudWorkspace, 'created_at' | 'updated_at'> => ({
     id: ws.id,
     name: ws.name,
     owner_id: ownerId,
     visibility: ws.visibility || 'private',
-    is_expanded: ws.isExpanded !== false
+    is_expanded: ws.isExpanded !== false,
+    position
 })
 
 export class SyncService {
     private userId: string | null = null
+    private lastKnownTimestamps: Map<string, string> = new Map()
 
     setUserId(userId: string | null) {
         this.userId = userId
+        this.lastKnownTimestamps.clear()
+    }
+
+    // Track known timestamps for conflict detection
+    private trackTimestamp(entityId: string, timestamp: string) {
+        this.lastKnownTimestamps.set(entityId, timestamp)
+    }
+
+    // Check if cloud version is newer than what we last knew
+    async checkTableConflict(tableId: string): Promise<{ hasConflict: boolean; cloudUpdatedAt?: string }> {
+        const { data } = await supabase
+            .from('tables')
+            .select('updated_at')
+            .eq('id', tableId)
+            .single()
+        
+        if (!data) return { hasConflict: false }
+        
+        const lastKnown = this.lastKnownTimestamps.get(tableId)
+        if (lastKnown && new Date(data.updated_at) > new Date(lastKnown)) {
+            return { hasConflict: true, cloudUpdatedAt: data.updated_at }
+        }
+        return { hasConflict: false }
+    }
+
+    async checkNoteConflict(noteId: string): Promise<{ hasConflict: boolean; cloudUpdatedAt?: string }> {
+        const { data } = await supabase
+            .from('notes')
+            .select('updated_at')
+            .eq('id', noteId)
+            .single()
+        
+        if (!data) return { hasConflict: false }
+        
+        const lastKnown = this.lastKnownTimestamps.get(noteId)
+        if (lastKnown && new Date(data.updated_at) > new Date(lastKnown)) {
+            return { hasConflict: true, cloudUpdatedAt: data.updated_at }
+        }
+        return { hasConflict: false }
     }
 
     // Fetch all workspaces for current user
@@ -91,33 +133,42 @@ export class SyncService {
             .from('workspaces')
             .select('*')
             .eq('owner_id', this.userId)
-            .order('created_at', { ascending: true })
+            .order('position', { ascending: true })
 
         if (ownedError) {
             console.error('Error fetching owned workspaces:', ownedError)
             throw ownedError
         }
 
-        // Fetch workspaces user is a member of
-        const { data: memberWorkspaces, error: memberError } = await supabase
+        // Fetch workspace IDs user is a member of (separate query to avoid JOIN RLS issues)
+        const { data: memberships, error: memberError } = await supabase
             .from('workspace_members')
-            .select(`
-                workspace_id,
-                role,
-                workspaces (*)
-            `)
+            .select('workspace_id, role')
             .eq('user_id', this.userId)
 
         if (memberError) {
-            console.error('Error fetching member workspaces:', memberError)
+            console.error('Error fetching memberships:', memberError)
         }
 
-        // Combine owned and member workspaces
+        // Fetch those workspaces directly
+        let memberWsList: CloudWorkspace[] = []
+        if (memberships && memberships.length > 0) {
+            const workspaceIds = memberships.map(m => m.workspace_id)
+            
+            const { data: memberWsData, error: wsError } = await supabase
+                .from('workspaces')
+                .select('*')
+                .in('id', workspaceIds)
+            
+            if (wsError) {
+                console.error('Error fetching member workspaces:', wsError)
+            }
+            memberWsList = (memberWsData || []) as CloudWorkspace[]
+        }
+
         const allCloudWorkspaces = [
             ...(ownedWorkspaces || []),
-            ...((memberWorkspaces || [])
-                .map(m => (m.workspaces as unknown as CloudWorkspace))
-                .filter(Boolean))
+            ...memberWsList
         ]
 
         // Fetch tables and notes for each workspace
@@ -146,13 +197,19 @@ export class SyncService {
             return []
         }
 
-        return (data || []).map(t => ({
-            id: t.id,
-            name: t.name,
-            columns: t.columns as TableItem['columns'],
-            rows: t.rows as TableItem['rows'],
-            appearance: t.appearance as TableItem['appearance']
-        }))
+        return (data || []).map(t => {
+            // Track timestamp for conflict detection
+            this.trackTimestamp(t.id, t.updated_at)
+            return {
+                id: t.id,
+                name: t.name,
+                columns: t.columns as TableItem['columns'],
+                rows: t.rows as TableItem['rows'],
+                appearance: t.appearance as TableItem['appearance'],
+                createdAt: t.created_at,
+                updatedAt: t.updated_at
+            }
+        })
     }
 
     // Fetch notes for a workspace
@@ -168,22 +225,28 @@ export class SyncService {
             return []
         }
 
-        return (data || []).map(n => ({
-            id: n.id,
-            name: n.name,
-            content: n.content,
-            createdAt: n.created_at,
-            updatedAt: n.updated_at
-        }))
+        return (data || []).map(n => {
+            // Track timestamp for conflict detection
+            this.trackTimestamp(n.id, n.updated_at)
+            return {
+                id: n.id,
+                name: n.name,
+                content: n.content,
+                isMonospace: n.is_monospace ?? false,
+                wordWrap: n.word_wrap ?? true,
+                createdAt: n.created_at,
+                updatedAt: n.updated_at
+            }
+        })
     }
 
     // Create a new workspace
-    async createWorkspace(workspace: Workspace): Promise<void> {
+    async createWorkspace(workspace: Workspace, position: number): Promise<void> {
         if (!this.userId) return
 
         const { error } = await supabase
             .from('workspaces')
-            .insert(toCloudWorkspace(workspace, this.userId))
+            .insert(toCloudWorkspace(workspace, this.userId, position))
 
         if (error) {
             console.error('Error creating workspace:', error)
@@ -192,13 +255,14 @@ export class SyncService {
     }
 
     // Update a workspace
-    async updateWorkspace(workspace: Workspace): Promise<void> {
+    async updateWorkspace(workspace: Workspace, position: number): Promise<void> {
         const { error } = await supabase
             .from('workspaces')
             .update({
                 name: workspace.name,
                 is_expanded: workspace.isExpanded !== false,
-                visibility: workspace.visibility || 'private'
+                visibility: workspace.visibility || 'private',
+                position
             })
             .eq('id', workspace.id)
 
@@ -206,6 +270,21 @@ export class SyncService {
             console.error('Error updating workspace:', error)
             throw error
         }
+    }
+    
+    // Reorder workspaces
+    async reorderWorkspaces(workspaceIds: string[]): Promise<void> {
+        if (!this.userId) return
+        
+        const updates = workspaceIds.map((id, index) => 
+            supabase
+                .from('workspaces')
+                .update({ position: index })
+                .eq('id', id)
+                .eq('owner_id', this.userId)
+        )
+
+        await Promise.all(updates)
     }
 
     // Delete a workspace
@@ -241,21 +320,34 @@ export class SyncService {
         }
     }
 
-    // Update a table
-    async updateTable(table: TableItem): Promise<void> {
-        const { error } = await supabase
+    // Update a table (throws if table doesn't exist to trigger creation)
+    async updateTable(table: TableItem, position: number): Promise<void> {
+        const { data, error } = await supabase
             .from('tables')
             .update({
                 name: table.name,
                 columns: table.columns as unknown,
                 rows: table.rows as unknown,
-                appearance: table.appearance as unknown
+                appearance: table.appearance as unknown,
+                position
             })
             .eq('id', table.id)
+            .select('id, updated_at')
 
         if (error) {
             console.error('Error updating table:', error)
             throw error
+        }
+        
+        // If no rows were updated, the table doesn't exist - throw to trigger creation
+        if (!data || data.length === 0) {
+            console.log('📋 Table not found in cloud, will be created')
+            throw new Error('Table not found')
+        }
+        
+        // Update tracked timestamp to prevent false conflicts on next push
+        if (data[0]?.updated_at) {
+            this.trackTimestamp(table.id, data[0].updated_at)
         }
     }
 
@@ -294,7 +386,9 @@ export class SyncService {
                 workspace_id: workspaceId,
                 name: note.name,
                 content: note.content,
-                position
+                position,
+                is_monospace: note.isMonospace ?? false,
+                word_wrap: note.wordWrap ?? true
             })
 
         if (error) {
@@ -303,19 +397,36 @@ export class SyncService {
         }
     }
 
-    // Update a note
-    async updateNote(note: NoteItem): Promise<void> {
-        const { error } = await supabase
+    // Update a note (throws if note doesn't exist to trigger creation)
+    async updateNote(note: NoteItem, position: number): Promise<void> {
+        // First try to update
+        const { data, error: updateError } = await supabase
             .from('notes')
             .update({
                 name: note.name,
-                content: note.content
+                content: note.content,
+                position,
+                is_monospace: note.isMonospace ?? false,
+                word_wrap: note.wordWrap ?? true
             })
             .eq('id', note.id)
+            .select('id, updated_at')
 
-        if (error) {
-            console.error('Error updating note:', error)
-            throw error
+        if (updateError) {
+            console.error('Error updating note:', updateError)
+            throw updateError
+        }
+        
+        // If no rows were updated, the note doesn't exist - need to create it
+        if (!data || data.length === 0) {
+            console.log('📝 Note not found in cloud, will be created on next full sync')
+            // Throw to trigger creation in the calling code
+            throw new Error('Note not found')
+        }
+        
+        // Update tracked timestamp to prevent false conflicts on next push
+        if (data[0]?.updated_at) {
+            this.trackTimestamp(note.id, data[0].updated_at)
         }
     }
 

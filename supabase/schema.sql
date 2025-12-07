@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
     owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     visibility workspace_visibility DEFAULT 'private',
     is_expanded BOOLEAN DEFAULT true,
+    position INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -60,6 +61,8 @@ CREATE TABLE IF NOT EXISTS notes (
     name TEXT NOT NULL,
     content TEXT DEFAULT '',
     position INTEGER DEFAULT 0,
+    is_monospace BOOLEAN DEFAULT false,
+    word_wrap BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -82,6 +85,10 @@ ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view their own profile"
     ON profiles FOR SELECT
     USING (auth.uid() = id);
+
+CREATE POLICY "Authenticated users can lookup profiles by email"
+    ON profiles FOR SELECT
+    USING (auth.uid() IS NOT NULL);
 
 CREATE POLICY "Users can update their own profile"
     ON profiles FOR UPDATE
@@ -160,6 +167,10 @@ CREATE POLICY "Workspace owners can manage members"
         )
     );
 
+CREATE POLICY "Users can view their own workspace memberships"
+    ON workspace_members FOR SELECT
+    USING (user_id = auth.uid());
+
 CREATE POLICY "Users can view members of workspaces they belong to"
     ON workspace_members FOR SELECT
     USING (
@@ -185,6 +196,15 @@ CREATE POLICY "Users can view tables in team workspaces"
         EXISTS (
             SELECT 1 FROM workspace_members
             WHERE workspace_id = tables.workspace_id AND user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Anyone can view tables in public workspaces"
+    ON tables FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM workspaces
+            WHERE id = tables.workspace_id AND visibility = 'public'
         )
     );
 
@@ -253,6 +273,15 @@ CREATE POLICY "Users can view notes in team workspaces"
         EXISTS (
             SELECT 1 FROM workspace_members
             WHERE workspace_id = notes.workspace_id AND user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Anyone can view notes in public workspaces"
+    ON notes FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM workspaces
+            WHERE id = notes.workspace_id AND visibility = 'public'
         )
     );
 
@@ -365,3 +394,27 @@ CREATE TRIGGER update_tables_updated_at
 CREATE TRIGGER update_notes_updated_at
     BEFORE UPDATE ON notes
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============ REALTIME ============
+-- Enable realtime for sync across devices
+-- This adds tables to Supabase's realtime publication
+
+-- First check if publication exists and add tables
+DO $$
+BEGIN
+    -- Add tables to realtime publication (Supabase creates this automatically)
+    IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+        -- Drop existing and re-add to ensure clean state
+        ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS workspaces;
+        ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS tables;
+        ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS notes;
+        
+        ALTER PUBLICATION supabase_realtime ADD TABLE workspaces;
+        ALTER PUBLICATION supabase_realtime ADD TABLE tables;
+        ALTER PUBLICATION supabase_realtime ADD TABLE notes;
+        
+        RAISE NOTICE 'Added workspaces, tables, notes to supabase_realtime publication';
+    ELSE
+        RAISE NOTICE 'supabase_realtime publication does not exist';
+    END IF;
+END $$;

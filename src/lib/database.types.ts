@@ -47,6 +47,7 @@ export interface Database {
           owner_id: string
           visibility: WorkspaceVisibility
           is_expanded: boolean
+          position: number
           created_at: string
           updated_at: string
         }
@@ -56,6 +57,7 @@ export interface Database {
           owner_id: string
           visibility?: WorkspaceVisibility
           is_expanded?: boolean
+          position?: number
           created_at?: string
           updated_at?: string
         }
@@ -63,6 +65,7 @@ export interface Database {
           name?: string
           visibility?: WorkspaceVisibility
           is_expanded?: boolean
+          position?: number
           updated_at?: string
         }
       }
@@ -126,6 +129,8 @@ export interface Database {
           name: string
           content: string
           position: number
+          is_monospace: boolean
+          word_wrap: boolean
           created_at: string
           updated_at: string
         }
@@ -135,6 +140,8 @@ export interface Database {
           name: string
           content?: string
           position?: number
+          is_monospace?: boolean
+          word_wrap?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -142,6 +149,8 @@ export interface Database {
           name?: string
           content?: string
           position?: number
+          is_monospace?: boolean
+          word_wrap?: boolean
           updated_at?: string
         }
       }

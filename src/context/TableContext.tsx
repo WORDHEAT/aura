@@ -2,8 +2,40 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import type { Column, Row } from '../components/Table/Table'
 import { useAuth } from './AuthContext'
 import { syncService } from '../services/SyncService'
-import { supabase } from '../lib/supabase'
 import { updateRowInTree, deleteRowFromTree, addSiblingToTree, addChildToRowInTree } from '../utils/treeUtils'
+
+// Pending operation for offline queue
+interface PendingOperation {
+    id: string
+    type: 'delete'
+    entityType: 'workspace' | 'table' | 'note'
+    entityId: string
+    workspaceId?: string
+    timestamp: number
+}
+
+// Helper to get/set pending operations from localStorage
+const PENDING_OPS_KEY = 'aura-pending-operations'
+const getPendingOps = (): PendingOperation[] => {
+    try {
+        return JSON.parse(localStorage.getItem(PENDING_OPS_KEY) || '[]')
+    } catch { return [] }
+}
+const savePendingOps = (ops: PendingOperation[]) => {
+    localStorage.setItem(PENDING_OPS_KEY, JSON.stringify(ops))
+}
+const addPendingDelete = (entityType: 'workspace' | 'table' | 'note', entityId: string, workspaceId?: string) => {
+    const ops = getPendingOps()
+    ops.push({
+        id: crypto.randomUUID(),
+        type: 'delete',
+        entityType,
+        entityId,
+        workspaceId,
+        timestamp: Date.now()
+    })
+    savePendingOps(ops)
+}
 
 // A single table within a workspace
 export interface TableItem {
@@ -11,6 +43,8 @@ export interface TableItem {
     name: string
     columns: Column[]
     rows: Row[]
+    createdAt?: string
+    updatedAt?: string
     // Per-table appearance settings (undefined = use global)
     appearance?: {
         compactMode?: boolean
@@ -78,7 +112,7 @@ interface TableContextType {
     deleteTable: (workspaceId: string, tableId: string) => void
     renameTable: (tableId: string, name: string) => void
     reorderTablesInWorkspace: (workspaceId: string, tableIds: string[]) => void
-    moveTableToWorkspace: (tableId: string, fromWorkspaceId: string, toWorkspaceId: string) => void
+    moveTableToWorkspace: (tableId: string, fromWorkspaceId: string, toWorkspaceId: string) => Promise<void>
     switchTable: (workspaceId: string, tableId: string) => void
     toggleTableSelection: (tableId: string) => void
     setSelectedTables: (ids: string[]) => void
@@ -103,7 +137,7 @@ interface TableContextType {
     updateNoteSettings: (noteId: string, settings: Partial<Pick<NoteItem, 'isMonospace' | 'wordWrap'>>) => void
     switchNote: (workspaceId: string, noteId: string) => void
     reorderNotesInWorkspace: (workspaceId: string, noteIds: string[]) => void
-    moveNoteToWorkspace: (noteId: string, fromWorkspaceId: string, toWorkspaceId: string) => void
+    moveNoteToWorkspace: (noteId: string, fromWorkspaceId: string, toWorkspaceId: string) => Promise<void>
     // Helpers
     getTableById: (tableId: string) => TableItem | undefined
     getNoteById: (noteId: string) => NoteItem | undefined
@@ -117,6 +151,7 @@ interface TableContextType {
     // Cloud sync
     isSyncing: boolean
     syncError: string | null
+    pendingOpsCount: number
     syncWorkspaces: () => Promise<void>
     setWorkspaceVisibility: (workspaceId: string, visibility: WorkspaceVisibility) => Promise<void>
 }
@@ -209,13 +244,23 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const { user, isAuthenticated } = useAuth()
     const [isSyncing, setIsSyncing] = useState(false)
     const [syncError, setSyncError] = useState<string | null>(null)
+    const [pendingOpsCount, setPendingOpsCount] = useState(() => getPendingOps().length)
+    
+    // Simple flags for sync
+    const initialSyncDoneRef = useRef(false)
+    const isLoadingFromCloudRef = useRef(false)
+    
+    // Ref to always access latest workspaces
+    const workspacesRef = useRef(workspaces)
+    workspacesRef.current = workspaces
 
     // Set user ID for sync service when auth changes
     useEffect(() => {
         syncService.setUserId(user?.id || null)
+        initialSyncDoneRef.current = false
     }, [user])
 
-    // Sync workspaces from cloud
+    // Fetch workspaces from cloud on app load
     const syncWorkspaces = useCallback(async () => {
         if (!isAuthenticated || !user) return
         
@@ -224,24 +269,39 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         
         try {
             const cloudWorkspaces = await syncService.fetchWorkspaces()
+            const currentWorkspaces = workspacesRef.current
             
             if (cloudWorkspaces.length > 0) {
-                // Cloud has data - use cloud data
-                setWorkspaces(cloudWorkspaces)
+                console.log('📥 Loaded', cloudWorkspaces.length, 'workspaces from cloud')
+                
+                // Preserve local expansion state only
+                const finalWorkspaces = cloudWorkspaces.map(cloudWs => {
+                    const localWs = currentWorkspaces.find(ws => ws.id === cloudWs.id)
+                    return {
+                        ...cloudWs,
+                        isExpanded: localWs?.isExpanded ?? cloudWs.isExpanded
+                    }
+                })
+                
+                // Mark as loading from cloud to prevent triggering push
+                isLoadingFromCloudRef.current = true
+                setWorkspaces(finalWorkspaces)
+                
                 // Update current workspace/table if needed
-                if (!cloudWorkspaces.some(ws => ws.id === currentWorkspaceId)) {
-                    setCurrentWorkspaceId(cloudWorkspaces[0].id)
-                    if (cloudWorkspaces[0].tables.length > 0) {
-                        setCurrentTableId(cloudWorkspaces[0].tables[0].id)
+                if (!finalWorkspaces.some(ws => ws.id === currentWorkspaceId)) {
+                    setCurrentWorkspaceId(finalWorkspaces[0].id)
+                    if (finalWorkspaces[0].tables.length > 0) {
+                        setCurrentTableId(finalWorkspaces[0].tables[0].id)
                     }
                 }
-                console.log('✅ Loaded from cloud:', cloudWorkspaces.length, 'workspaces')
+                console.log('✅ Sync complete:', finalWorkspaces.length, 'workspaces')
             } else {
                 // Cloud is empty - push current local data to cloud
                 console.log('☁️ Cloud is empty, pushing local data...')
-                for (const workspace of workspaces) {
+                for (let wsIndex = 0; wsIndex < currentWorkspaces.length; wsIndex++) {
+                    const workspace = currentWorkspaces[wsIndex]
                     try {
-                        await syncService.createWorkspace(workspace)
+                        await syncService.createWorkspace(workspace, wsIndex)
                         // Create tables
                         for (let i = 0; i < workspace.tables.length; i++) {
                             await syncService.createTable(workspace.id, workspace.tables[i], i)
@@ -261,8 +321,9 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             setSyncError(error instanceof Error ? error.message : 'Failed to sync')
         } finally {
             setIsSyncing(false)
+            initialSyncDoneRef.current = true
         }
-    }, [isAuthenticated, user, currentWorkspaceId, workspaces])
+    }, [isAuthenticated, user, currentWorkspaceId]) // Removed workspaces - using ref instead
 
     // Set workspace visibility
     const setWorkspaceVisibility = useCallback(async (workspaceId: string, visibility: WorkspaceVisibility) => {
@@ -280,118 +341,177 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
     }, [isAuthenticated])
 
-    // Auto-sync when user logs in
-    useEffect(() => {
-        if (isAuthenticated && user) {
-            syncWorkspaces()
-        }
-    }, [isAuthenticated, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Real-time sync - listen for changes from other devices
+    // Auto-sync when user logs in - ONLY on initial load
     useEffect(() => {
         if (!isAuthenticated || !user) return
-
-        // Subscribe to changes on workspaces, tables, and notes
-        const channel = supabase
-            .channel('sync-changes')
-            .on('postgres_changes', 
-                { event: '*', schema: 'public', table: 'workspaces' },
-                () => {
-                    console.log('📡 Workspace changed on another device')
+        
+        // Only sync once on login
+        if (initialSyncDoneRef.current) return
+        
+        const pendingSync = localStorage.getItem('aura-pending-sync')
+        if (pendingSync) {
+            try {
+                const { workspaces: pendingWorkspaces, userId: pendingUserId } = JSON.parse(pendingSync)
+                
+                // Only push if pending sync belongs to current user
+                if (pendingUserId === user.id) {
+                    console.log('📤 Found pending sync from previous session, pushing first...')
+                    pushToCloud(pendingWorkspaces).then(() => {
+                        localStorage.removeItem('aura-pending-sync')
+                        console.log('✅ Pending sync completed')
+                        initialSyncDoneRef.current = true
+                    }).catch(err => {
+                        console.error('Failed to push pending sync:', err)
+                        localStorage.removeItem('aura-pending-sync')
+                        syncWorkspaces()
+                    })
+                } else {
+                    // Pending sync belongs to different user - discard it
+                    console.log('🗑️ Discarding pending sync from different user')
+                    localStorage.removeItem('aura-pending-sync')
                     syncWorkspaces()
                 }
-            )
-            .on('postgres_changes',
-                { event: '*', schema: 'public', table: 'tables' },
-                () => {
-                    console.log('📡 Table changed on another device')
-                    syncWorkspaces()
-                }
-            )
-            .on('postgres_changes',
-                { event: '*', schema: 'public', table: 'notes' },
-                () => {
-                    console.log('📡 Note changed on another device')
-                    syncWorkspaces()
-                }
-            )
-            .subscribe()
-
-        return () => {
-            supabase.removeChannel(channel)
+            } catch (e) {
+                console.error('Failed to parse pending sync:', e)
+                localStorage.removeItem('aura-pending-sync')
+                syncWorkspaces()
+            }
+        } else {
+            // No pending changes, sync from cloud
+            syncWorkspaces()
         }
     }, [isAuthenticated, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Track previous workspaces for change detection
     const prevWorkspacesRef = useRef<string>('')
     const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const isInitialLoadRef = useRef(true)
 
-    // Push changes to cloud (debounced)
-    const pushToCloud = useCallback(async (workspacesToPush: Workspace[]) => {
-        if (!isAuthenticated || !user) return
+    // Push changes to cloud - returns true if ALL operations succeeded
+    const pushToCloud = useCallback(async (workspacesToPush: Workspace[]): Promise<boolean> => {
+        if (!isAuthenticated || !user) return false
+        
+        let hasErrors = false
         
         try {
-            // Get existing cloud workspace IDs
-            const cloudWorkspaces = await syncService.fetchWorkspaces()
-            const cloudWorkspaceIds = new Set(cloudWorkspaces.map(ws => ws.id))
-            const localWorkspaceIds = new Set(workspacesToPush.map(ws => ws.id))
-
-            // Create or update workspaces
+            // Helper to update or create
+            const upsertTable = async (workspaceId: string, table: TableItem, position: number) => {
+                try {
+                    await syncService.updateTable(table, position)
+                } catch {
+                    try {
+                        await syncService.createTable(workspaceId, table, position)
+                    } catch (err) {
+                        console.error('❌ Table sync failed:', table.id, err)
+                        hasErrors = true
+                    }
+                }
+            }
+            
+            const upsertNote = async (workspaceId: string, note: NoteItem, position: number) => {
+                try {
+                    await syncService.updateNote(note, position)
+                } catch {
+                    try {
+                        await syncService.createNote(workspaceId, note, position)
+                    } catch (err) {
+                        console.error('❌ Note sync failed:', note.id, err)
+                        hasErrors = true
+                    }
+                }
+            }
+            
+            // Process all workspaces
+            const allPromises: Promise<void>[] = []
+            
             for (const workspace of workspacesToPush) {
-                if (!cloudWorkspaceIds.has(workspace.id)) {
-                    // New workspace - create it
-                    await syncService.createWorkspace(workspace)
-                    // Create tables
-                    for (let i = 0; i < workspace.tables.length; i++) {
-                        await syncService.createTable(workspace.id, workspace.tables[i], i)
-                    }
-                    // Create notes
-                    for (let i = 0; i < workspace.notes.length; i++) {
-                        await syncService.createNote(workspace.id, workspace.notes[i], i)
-                    }
-                } else {
-                    // Existing workspace - update it
-                    await syncService.updateWorkspace(workspace)
-                    // Update tables
-                    for (const table of workspace.tables) {
-                        try {
-                            await syncService.updateTable(table)
-                        } catch {
-                            // Table might not exist, create it
-                            await syncService.createTable(workspace.id, table, workspace.tables.indexOf(table))
+                const isOwner = workspace.ownerId === user.id || !workspace.ownerId
+                const wsIndex = workspacesToPush.indexOf(workspace)
+                
+                // Only owners can create/update workspaces
+                if (isOwner) {
+                    allPromises.push(
+                        syncService.updateWorkspace(workspace, wsIndex)
+                            .catch(() => syncService.createWorkspace(workspace, wsIndex))
+                            .catch(err => {
+                                console.error('❌ Workspace sync failed:', workspace.id, err)
+                                hasErrors = true
+                            })
+                    )
+                }
+                
+                // Update tables in parallel
+                for (let i = 0; i < workspace.tables.length; i++) {
+                    allPromises.push(upsertTable(workspace.id, workspace.tables[i], i))
+                }
+                
+                // Update notes in parallel
+                for (let i = 0; i < workspace.notes.length; i++) {
+                    allPromises.push(upsertNote(workspace.id, workspace.notes[i], i))
+                }
+            }
+            
+            await Promise.all(allPromises)
+            
+            // Process pending deletions
+            const pendingOps = getPendingOps()
+            const successfulDeletes: string[] = []
+            
+            for (const op of pendingOps) {
+                if (op.type === 'delete') {
+                    try {
+                        if (op.entityType === 'workspace') {
+                            await syncService.deleteWorkspace(op.entityId)
+                            console.log('🗑️ Deleted workspace from cloud:', op.entityId)
+                        } else if (op.entityType === 'table') {
+                            await syncService.deleteTable(op.entityId)
+                            console.log('🗑️ Deleted table from cloud:', op.entityId)
+                        } else if (op.entityType === 'note') {
+                            await syncService.deleteNote(op.entityId)
+                            console.log('🗑️ Deleted note from cloud:', op.entityId)
                         }
-                    }
-                    // Update notes
-                    for (const note of workspace.notes) {
-                        try {
-                            await syncService.updateNote(note)
-                        } catch {
-                            // Note might not exist, create it
-                            await syncService.createNote(workspace.id, note, workspace.notes.indexOf(note))
-                        }
+                        successfulDeletes.push(op.id)
+                    } catch (err) {
+                        // Might already be deleted or user lacks permission - mark as successful anyway
+                        console.warn('Delete operation failed (might already be deleted):', op.entityId, err)
+                        successfulDeletes.push(op.id)
                     }
                 }
             }
-
-            // Delete removed workspaces
-            for (const cloudWs of cloudWorkspaces) {
-                if (!localWorkspaceIds.has(cloudWs.id)) {
-                    await syncService.deleteWorkspace(cloudWs.id)
-                }
+            
+            // Remove processed operations from queue
+            if (successfulDeletes.length > 0) {
+                const remainingOps = pendingOps.filter(op => !successfulDeletes.includes(op.id))
+                savePendingOps(remainingOps)
+                setPendingOpsCount(remainingOps.length)
             }
-
-            console.log('✅ Synced to cloud')
+            
+            if (hasErrors) {
+                console.warn('⚠️ Push completed with some errors')
+                setSyncError('Some items failed to sync')
+            } else {
+                console.log('✅ Push complete')
+                setSyncError(null)
+            }
+            
+            return !hasErrors
         } catch (error) {
             console.error('Push to cloud error:', error)
+            setSyncError('Sync failed')
+            return false
         }
     }, [isAuthenticated, user])
 
-    // Auto-push changes to cloud (debounced)
+    // Auto-push changes to cloud (500ms debounce to batch rapid changes)
     useEffect(() => {
-        // Skip initial load
-        if (isInitialLoadRef.current) {
-            isInitialLoadRef.current = false
+        // Skip if not authenticated or loading from cloud
+        if (!isAuthenticated || !user) {
+            prevWorkspacesRef.current = JSON.stringify(workspaces)
+            return
+        }
+        
+        // Skip if we just loaded from cloud
+        if (isLoadingFromCloudRef.current) {
+            isLoadingFromCloudRef.current = false
             prevWorkspacesRef.current = JSON.stringify(workspaces)
             return
         }
@@ -403,22 +523,43 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
         prevWorkspacesRef.current = currentWorkspacesJson
 
-        // Debounce the sync (wait 2 seconds after last change)
+        // Debounce push (500ms)
         if (syncTimeoutRef.current) {
             clearTimeout(syncTimeoutRef.current)
         }
 
-        syncTimeoutRef.current = setTimeout(() => {
-            pushToCloud(workspaces)
-        }, 2000)
+        syncTimeoutRef.current = setTimeout(async () => {
+            const latestWorkspaces = workspacesRef.current
+            console.log('⚡ Pushing changes to cloud...')
+            await pushToCloud(latestWorkspaces)
+        }, 500)
 
         return () => {
             if (syncTimeoutRef.current) {
                 clearTimeout(syncTimeoutRef.current)
             }
         }
-    }, [workspaces, pushToCloud])
+    }, [workspaces, pushToCloud, isAuthenticated, user])
 
+    // Save pending changes when leaving the page
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            if (syncTimeoutRef.current && isAuthenticated && user) {
+                clearTimeout(syncTimeoutRef.current)
+                // Store in localStorage as backup - will be pushed on next load
+                const workspacesData = JSON.stringify({
+                    workspaces: workspacesRef.current,
+                    userId: user.id
+                })
+                localStorage.setItem('aura-pending-sync', workspacesData)
+                console.log('💾 Saved pending changes for next session')
+            }
+        }
+        
+        window.addEventListener('beforeunload', handleBeforeUnload)
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+    }, [isAuthenticated, user])
+    
     // Save to localStorage
     useEffect(() => {
         localStorage.setItem('aura-workspaces', JSON.stringify(workspaces))
@@ -555,6 +696,14 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             alert('Cannot delete the last workspace')
             return
         }
+        
+        // Track deletion for cloud sync
+        const workspace = workspaces.find(w => w.id === id)
+        if (workspace?.ownerId === user?.id || !workspace?.ownerId) {
+            addPendingDelete('workspace', id)
+            setPendingOpsCount(getPendingOps().length)
+        }
+        
         const newWorkspaces = workspaces.filter(w => w.id !== id)
         setWorkspacesWithHistory(newWorkspaces)
         
@@ -671,6 +820,10 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             return
         }
         
+        // Track deletion for cloud sync
+        addPendingDelete('table', tableId, workspaceId)
+        setPendingOpsCount(getPendingOps().length)
+        
         const newTables = workspace.tables.filter(t => t.id !== tableId)
         setWorkspacesWithHistory(workspaces.map(ws =>
             ws.id === workspaceId ? { ...ws, tables: newTables } : ws
@@ -710,28 +863,43 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }))
     }
 
-    const moveTableToWorkspace = (tableId: string, fromWorkspaceId: string, toWorkspaceId: string) => {
+    const moveTableToWorkspace = async (tableId: string, fromWorkspaceId: string, toWorkspaceId: string) => {
         if (fromWorkspaceId === toWorkspaceId) return
-        
-        const fromWorkspace = workspaces.find(ws => ws.id === fromWorkspaceId)
-        const tableToMove = fromWorkspace?.tables.find(t => t.id === tableId)
-        if (!tableToMove) return
 
-        setWorkspacesWithHistory(workspaces.map(ws => {
-            if (ws.id === fromWorkspaceId) {
-                // Remove table from source workspace
-                return { ...ws, tables: ws.tables.filter(t => t.id !== tableId) }
+        // 1. Optimistic update - update local state immediately
+        setWorkspacesWithHistory(prev => {
+            const fromWorkspace = prev.find(ws => ws.id === fromWorkspaceId)
+            const tableToMove = fromWorkspace?.tables.find(t => t.id === tableId)
+            if (!tableToMove) {
+                console.warn('moveTableToWorkspace: table not found', tableId)
+                return prev
             }
-            if (ws.id === toWorkspaceId) {
-                // Add table to target workspace
-                return { ...ws, tables: [...ws.tables, tableToMove] }
-            }
-            return ws
-        }))
 
-        // Update current workspace if the moved table was the current one
+            return prev.map(ws => {
+                if (ws.id === fromWorkspaceId) {
+                    return { ...ws, tables: ws.tables.filter(t => t.id !== tableId) }
+                }
+                if (ws.id === toWorkspaceId) {
+                    return { ...ws, tables: [...ws.tables, tableToMove] }
+                }
+                return ws
+            })
+        })
+
+        // Update current workspace if needed
         if (currentTableId === tableId) {
             setCurrentWorkspaceId(toWorkspaceId)
+        }
+
+        // 2. Immediately sync to cloud (no debounce for moves)
+        if (isAuthenticated) {
+            try {
+                await syncService.moveTable(tableId, toWorkspaceId)
+                console.log('✅ Table moved and synced:', tableId, '→', toWorkspaceId)
+            } catch (error) {
+                console.error('Failed to sync table move:', error)
+                // Could rollback here, but for now just log
+            }
         }
     }
 
@@ -913,6 +1081,10 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             return
         }
         
+        // Track deletion for cloud sync
+        addPendingDelete('note', noteId, workspaceId)
+        setPendingOpsCount(getPendingOps().length)
+        
         setWorkspacesWithHistory(workspaces.map(ws =>
             ws.id === workspaceId
                 ? { ...ws, notes: ws.notes.filter(n => n.id !== noteId) }
@@ -954,7 +1126,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         setCurrentWorkspaceId(workspaceId)
         setCurrentNoteId(noteId)
         setCurrentItemType('note')
-        setSelectedTables([noteId])  // Clear table selection and select note
+        setSelectedTables([])  // Clear table selection when switching to note
         setCurrentTableId('')  // Clear current table
     }
 
@@ -968,28 +1140,43 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }))
     }
 
-    const moveNoteToWorkspace = (noteId: string, fromWorkspaceId: string, toWorkspaceId: string) => {
+    const moveNoteToWorkspace = async (noteId: string, fromWorkspaceId: string, toWorkspaceId: string) => {
         if (fromWorkspaceId === toWorkspaceId) return
-        
-        const fromWorkspace = workspaces.find(ws => ws.id === fromWorkspaceId)
-        const noteToMove = fromWorkspace?.notes.find(n => n.id === noteId)
-        if (!noteToMove) return
 
-        setWorkspacesWithHistory(workspaces.map(ws => {
-            if (ws.id === fromWorkspaceId) {
-                // Remove note from source workspace
-                return { ...ws, notes: ws.notes.filter(n => n.id !== noteId) }
+        // 1. Optimistic update - update local state immediately
+        setWorkspacesWithHistory(prev => {
+            const fromWorkspace = prev.find(ws => ws.id === fromWorkspaceId)
+            const noteToMove = fromWorkspace?.notes.find(n => n.id === noteId)
+            if (!noteToMove) {
+                console.warn('moveNoteToWorkspace: note not found', noteId)
+                return prev
             }
-            if (ws.id === toWorkspaceId) {
-                // Add note to target workspace
-                return { ...ws, notes: [...ws.notes, noteToMove] }
-            }
-            return ws
-        }))
 
-        // Update current workspace if the moved note was the current one
+            return prev.map(ws => {
+                if (ws.id === fromWorkspaceId) {
+                    return { ...ws, notes: ws.notes.filter(n => n.id !== noteId) }
+                }
+                if (ws.id === toWorkspaceId) {
+                    return { ...ws, notes: [...ws.notes, noteToMove] }
+                }
+                return ws
+            })
+        })
+
+        // Update current workspace if needed
         if (currentNoteId === noteId) {
             setCurrentWorkspaceId(toWorkspaceId)
+        }
+
+        // 2. Immediately sync to cloud (no debounce for moves)
+        if (isAuthenticated) {
+            try {
+                await syncService.moveNote(noteId, toWorkspaceId)
+                console.log('✅ Note moved and synced:', noteId, '→', toWorkspaceId)
+            } catch (error) {
+                console.error('Failed to sync note move:', error)
+                // Could rollback here, but for now just log
+            }
         }
     }
 
@@ -1050,6 +1237,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             // Cloud sync
             isSyncing,
             syncError,
+            pendingOpsCount,
             syncWorkspaces,
             setWorkspaceVisibility,
         }}>

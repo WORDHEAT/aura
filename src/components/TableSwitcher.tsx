@@ -8,6 +8,8 @@ import {
     pointerWithin,
     KeyboardSensor,
     PointerSensor,
+    MouseSensor,
+    TouchSensor,
     useSensor,
     useSensors,
     useDroppable,
@@ -220,26 +222,26 @@ function SortableTableRow({
                     </span>
                 )}
                 
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                <div className="flex items-center gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
                     <button
                         onClick={(e) => {
                             e.stopPropagation()
                             onShowDuplicateOptions(workspace.id, table.id)
                         }}
-                        className="text-[#6b6b6b] hover:text-blue-400 p-0.5"
+                        className="text-[#6b6b6b] hover:text-blue-400 p-1.5 rounded hover:bg-[#333]"
                         title="Duplicate table"
                     >
-                        <Copy size={11} />
+                        <Copy size={12} />
                     </button>
                     <button
                         onClick={(e) => {
                             e.stopPropagation()
                             onDelete(table.id)
                         }}
-                        className="text-[#6b6b6b] hover:text-red-400 p-0.5"
+                        className="text-[#6b6b6b] hover:text-red-400 p-1.5 rounded hover:bg-[#333]"
                         title="Delete table"
                     >
-                        <Trash2 size={11} />
+                        <Trash2 size={12} />
                     </button>
                 </div>
             </div>
@@ -426,26 +428,26 @@ function SortableNoteRow({
                     </span>
                 )}
                 
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                <div className="flex items-center gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
                     <button
                         onClick={(e) => {
                             e.stopPropagation()
                             onShowDuplicateOptions(workspace.id, note.id)
                         }}
-                        className="text-[#6b6b6b] hover:text-blue-400 p-0.5"
+                        className="text-[#6b6b6b] hover:text-blue-400 p-1.5 rounded hover:bg-[#333]"
                         title="Duplicate note"
                     >
-                        <Copy size={11} />
+                        <Copy size={12} />
                     </button>
                     <button
                         onClick={(e) => {
                             e.stopPropagation()
                             onDelete(note.id)
                         }}
-                        className="text-[#6b6b6b] hover:text-red-400 p-0.5"
+                        className="text-[#6b6b6b] hover:text-red-400 p-1.5 rounded hover:bg-[#333]"
                         title="Delete note"
                     >
-                        <Trash2 size={11} />
+                        <Trash2 size={12} />
                     </button>
                 </div>
             </div>
@@ -498,9 +500,10 @@ function SortableNoteRow({
 interface TableSwitcherProps {
     isCollapsed: boolean
     setIsCollapsed: (collapsed: boolean) => void
+    onItemSelect?: () => void  // Called when an item is selected (for closing mobile drawer)
 }
 
-export function TableSwitcher({ isCollapsed, setIsCollapsed }: TableSwitcherProps) {
+export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: TableSwitcherProps) {
     const { 
         workspaces, 
         currentTableId,
@@ -531,8 +534,14 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed }: TableSwitcherProp
         moveNoteToWorkspace,
     } = useTableContext()
     
-    // DnD Sensors
+    // DnD Sensors - use both Mouse and Touch for better Electron compatibility
     const sensors = useSensors(
+        useSensor(MouseSensor, {
+            activationConstraint: { distance: 5 },
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: { delay: 200, tolerance: 5 },
+        }),
         useSensor(PointerSensor, {
             activationConstraint: { distance: 5 },
         }),
@@ -613,6 +622,7 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed }: TableSwitcherProp
             toggleTableSelection(tableId)
         } else {
             switchTable(workspaceId, tableId)
+            onItemSelect?.()  // Close mobile drawer
         }
     }
 
@@ -621,6 +631,7 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed }: TableSwitcherProp
             toggleTableSelection(noteId)
         } else {
             switchNote(workspaceId, noteId)
+            onItemSelect?.()  // Close mobile drawer
         }
     }
 
@@ -817,16 +828,16 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed }: TableSwitcherProp
                         </span>
                     )}
                     
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                         <button
                             onClick={(e) => {
                                 e.stopPropagation()
                                 setWorkspaceSettingsId(workspace.id)
                             }}
-                            className="text-[#6b6b6b] hover:text-[#e3e3e3] p-1 rounded hover:bg-[#333] transition-colors"
+                            className="text-[#6b6b6b] hover:text-[#e3e3e3] p-1.5 rounded hover:bg-[#333] transition-colors"
                             title="Workspace settings"
                         >
-                            <Settings size={12} />
+                            <Settings size={14} />
                         </button>
                         <button
                             onClick={(e) => {
@@ -834,10 +845,10 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed }: TableSwitcherProp
                                 setAddingTableToWorkspace(workspace.id)
                                 setNewTableName('')
                             }}
-                            className="text-[#6b6b6b] hover:text-blue-400 p-1 rounded hover:bg-[#333] transition-colors"
+                            className="text-[#6b6b6b] hover:text-blue-400 p-1.5 rounded hover:bg-[#333] transition-colors"
                             title="Add table"
                         >
-                            <TableIcon size={12} />
+                            <TableIcon size={14} />
                         </button>
                         <button
                             onClick={(e) => {
@@ -845,20 +856,20 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed }: TableSwitcherProp
                                 setAddingNoteToWorkspace(workspace.id)
                                 setNewNoteName('')
                             }}
-                            className="text-[#6b6b6b] hover:text-green-400 p-1 rounded hover:bg-[#333] transition-colors"
+                            className="text-[#6b6b6b] hover:text-green-400 p-1.5 rounded hover:bg-[#333] transition-colors"
                             title="Add note"
                         >
-                            <FileText size={12} />
+                            <FileText size={14} />
                         </button>
                         <button
                             onClick={(e) => {
                                 e.stopPropagation()
                                 setDeleteConfirm({ type: 'workspace', id: workspace.id })
                             }}
-                            className="text-[#6b6b6b] hover:text-red-400 p-1 rounded hover:bg-[#333] transition-colors"
+                            className="text-[#6b6b6b] hover:text-red-400 p-1.5 rounded hover:bg-[#333] transition-colors"
                             title="Delete workspace"
                         >
-                            <Trash2 size={12} />
+                            <Trash2 size={14} />
                         </button>
                     </div>
                     </div>
@@ -1014,7 +1025,7 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed }: TableSwitcherProp
     }
 
     return (
-        <div className={`bg-[#202020] border border-[#373737] rounded-xl shadow-lg flex flex-col gap-4 max-h-[calc(100vh-120px)] transition-all duration-300 ${isCollapsed ? 'p-2' : 'p-4'}`}>
+        <div className={`bg-[#202020] border border-[#373737] rounded-xl shadow-lg flex flex-col gap-4 max-h-[300px] lg:max-h-[calc(100vh-120px)] transition-all duration-300 ${isCollapsed ? 'p-2' : 'p-4'}`}>
             <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
                 <button 
                     onClick={() => setIsCollapsed(!isCollapsed)}

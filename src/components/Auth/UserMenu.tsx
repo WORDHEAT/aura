@@ -33,9 +33,9 @@ export function UserMenu({ onOpenSettings, onOpenAuth }: UserMenuProps) {
         return (
             <button
                 onClick={onOpenAuth}
-                className="flex items-center gap-2 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-blue-500 hover:bg-blue-600 active:scale-95 text-white text-xs sm:text-sm font-medium rounded-lg transition-all"
             >
-                <User size={16} />
+                <User size={14} className="sm:w-4 sm:h-4" />
                 <span>Sign In</span>
             </button>
         )

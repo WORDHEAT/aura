@@ -1,0 +1,25 @@
+{
+  "name": "Aura",
+  "short_name": "Aura",
+  "description": "Your tables, your time. Manage tables and notes with cloud sync.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#191919",
+  "theme_color": "#191919",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.ico",
+      "sizes": "256x256",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "lang": "en"
+}

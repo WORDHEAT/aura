@@ -1,4 +1,5 @@
 import { X, LayoutTemplate, LayoutList, Bell, Maximize2, Minimize2, Grid, Rows } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { useSettings } from '../context/SettingsContext'
 import { format } from 'date-fns'
 
@@ -26,8 +27,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
     const now = new Date()
 
-    return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+    return createPortal(
+        <div className="fixed inset-0 z-[50000] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-[#202020] border border-[#373737] rounded-xl shadow-2xl w-full max-w-md m-4 overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-[#373737]">
                     <h2 className="text-lg font-semibold text-[#e3e3e3]">Settings</h2>
@@ -220,6 +221,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     )
 }
