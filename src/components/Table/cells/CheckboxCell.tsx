@@ -1,11 +1,12 @@
 import { Check } from 'lucide-react'
+import { memo } from 'react'
 
 interface CheckboxCellProps {
     value: string
     onChange: (value: string) => void
 }
 
-export function CheckboxCell({ value, onChange }: CheckboxCellProps) {
+export const CheckboxCell = memo(function CheckboxCell({ value, onChange }: CheckboxCellProps) {
     const isChecked = value === 'true'
 
     return (
@@ -21,4 +22,4 @@ export function CheckboxCell({ value, onChange }: CheckboxCellProps) {
             </button>
         </div>
     )
-}
+})

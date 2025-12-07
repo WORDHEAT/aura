@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { TableSwitcher } from './components/TableSwitcher'
 import { Table } from './components/Table/Table'
 import { NoteEditor } from './components/NoteEditor'
@@ -9,14 +9,17 @@ import { useTableContext } from './context/TableContext'
 import { useAuth } from './context/AuthContext'
 import type { Row } from './components/Table/Table'
 import { LayoutList, LayoutTemplate, Settings, Undo2, Redo2, Plus, FolderPlus, FileText, Table2, Clock, Sparkles, Menu, X, Calendar, Trash2, Search } from 'lucide-react'
-import { SettingsModal } from './components/SettingsModal'
-import { CalendarView } from './components/CalendarView'
 import { useSettings } from './context/SettingsContext'
-import { AuthModal, UserMenu } from './components/Auth'
-import { ProfileModal } from './components/ProfileModal'
+import { UserMenu } from './components/Auth'
 import { LandingPage } from './components/LandingPage'
-import { TrashModal } from './components/TrashModal'
-import { SearchCommand } from './components/SearchCommand'
+
+// Lazy load modals for better initial bundle size
+const SettingsModal = lazy(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })))
+const CalendarView = lazy(() => import('./components/CalendarView').then(m => ({ default: m.CalendarView })))
+const AuthModal = lazy(() => import('./components/Auth/AuthModal').then(m => ({ default: m.AuthModal })))
+const ProfileModal = lazy(() => import('./components/ProfileModal').then(m => ({ default: m.ProfileModal })))
+const TrashModal = lazy(() => import('./components/TrashModal').then(m => ({ default: m.TrashModal })))
+const SearchCommand = lazy(() => import('./components/SearchCommand').then(m => ({ default: m.SearchCommand })))
 
 function App() {
   const { settings } = useSettings()
@@ -536,39 +539,54 @@ function App() {
         </div>
       </div>
 
-      <SettingsModal 
-        isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)} 
-      />
+      {/* Lazy-loaded modals wrapped in Suspense */}
+      <Suspense fallback={null}>
+        {isSettingsOpen && (
+          <SettingsModal 
+            isOpen={isSettingsOpen} 
+            onClose={() => setIsSettingsOpen(false)} 
+          />
+        )}
 
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onSignIn={signIn}
-        onSignUp={signUp}
-        onGoogleSignIn={signInWithGoogle}
-        onGithubSignIn={signInWithGithub}
-      />
+        {isAuthModalOpen && (
+          <AuthModal
+            isOpen={isAuthModalOpen}
+            onClose={() => setIsAuthModalOpen(false)}
+            onSignIn={signIn}
+            onSignUp={signUp}
+            onGoogleSignIn={signInWithGoogle}
+            onGithubSignIn={signInWithGithub}
+          />
+        )}
 
-      <CalendarView
-        isOpen={isCalendarOpen}
-        onClose={() => setIsCalendarOpen(false)}
-      />
+        {isCalendarOpen && (
+          <CalendarView
+            isOpen={isCalendarOpen}
+            onClose={() => setIsCalendarOpen(false)}
+          />
+        )}
 
-      <ProfileModal
-        isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
-      />
+        {isProfileOpen && (
+          <ProfileModal
+            isOpen={isProfileOpen}
+            onClose={() => setIsProfileOpen(false)}
+          />
+        )}
 
-      <TrashModal
-        isOpen={isTrashOpen}
-        onClose={() => setIsTrashOpen(false)}
-      />
+        {isTrashOpen && (
+          <TrashModal
+            isOpen={isTrashOpen}
+            onClose={() => setIsTrashOpen(false)}
+          />
+        )}
 
-      <SearchCommand
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-      />
+        {isSearchOpen && (
+          <SearchCommand
+            isOpen={isSearchOpen}
+            onClose={() => setIsSearchOpen(false)}
+          />
+        )}
+      </Suspense>
     </div>
   )
 }

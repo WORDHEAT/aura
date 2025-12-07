@@ -6,7 +6,7 @@ import { ColorPicker, COLORS } from '../ColorPicker'
 import type { Column, Row } from './Table'
 import { ResizeHandle } from './ResizeHandle'
 import { useSettings } from '../../context/SettingsContext'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 
 interface SortableRowProps {
     row: Row
@@ -36,7 +36,7 @@ interface SortableRowProps {
     zebraStriping?: boolean
 }
 
-export function SortableRow({
+export const SortableRow = memo(function SortableRow({
     row,
     index,
     level,
@@ -403,4 +403,4 @@ export function SortableRow({
             ))}
         </tr>
     )
-}
+})

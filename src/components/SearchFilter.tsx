@@ -1,5 +1,5 @@
 import { Search, X } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface SearchFilterProps {
     searchTerm: string
@@ -8,6 +8,36 @@ interface SearchFilterProps {
 
 export function SearchFilter({ searchTerm, onSearchChange }: SearchFilterProps) {
     const [isExpanded, setIsExpanded] = useState(false)
+    const [localValue, setLocalValue] = useState(searchTerm)
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    // Debounce search updates
+    useEffect(() => {
+        if (debounceRef.current) {
+            clearTimeout(debounceRef.current)
+        }
+        debounceRef.current = setTimeout(() => {
+            if (localValue !== searchTerm) {
+                onSearchChange(localValue)
+            }
+        }, 150) // 150ms debounce
+
+        return () => {
+            if (debounceRef.current) {
+                clearTimeout(debounceRef.current)
+            }
+        }
+    }, [localValue, searchTerm, onSearchChange])
+
+    // Sync with external searchTerm
+    useEffect(() => {
+        setLocalValue(searchTerm)
+    }, [searchTerm])
+
+    const handleClear = () => {
+        setLocalValue('')
+        onSearchChange('')
+    }
 
     return (
         <div className="flex items-center gap-2">
@@ -16,15 +46,15 @@ export function SearchFilter({ searchTerm, onSearchChange }: SearchFilterProps) 
                     <Search size={16} className="text-[#6b6b6b] flex-shrink-0" />
                     <input
                         type="text"
-                        value={searchTerm}
-                        onChange={(e) => onSearchChange(e.target.value)}
+                        value={localValue}
+                        onChange={(e) => setLocalValue(e.target.value)}
                         placeholder="Search..."
                         className="bg-transparent outline-none text-sm w-full sm:w-48 text-[#e3e3e3] placeholder-[#6b6b6b]"
                         autoFocus
                     />
-                    {searchTerm && (
+                    {localValue && (
                         <button
-                            onClick={() => onSearchChange('')}
+                            onClick={handleClear}
                             className="text-[#6b6b6b] hover:text-[#e3e3e3] flex-shrink-0"
                         >
                             <X size={16} />
@@ -33,7 +63,7 @@ export function SearchFilter({ searchTerm, onSearchChange }: SearchFilterProps) 
                     <button
                         onClick={() => {
                             setIsExpanded(false)
-                            onSearchChange('')
+                            handleClear()
                         }}
                         className="text-[#9b9b9b] hover:text-[#e3e3e3] text-sm ml-1 hidden sm:block"
                     >
