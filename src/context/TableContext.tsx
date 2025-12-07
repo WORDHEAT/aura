@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { Column, Row } from '../components/Table/Table'
 import { useAuth } from './AuthContext'
 import { syncService } from '../services/SyncService'
@@ -607,9 +607,21 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         return workspaces.find(ws => ws.notes.some(n => n.id === noteId))
     }, [workspaces])
 
-    const currentWorkspace = workspaces.find(w => w.id === currentWorkspaceId) || workspaces[0]
-    const currentTable = getTableById(currentTableId) || workspaces[0]?.tables[0]
-    const currentNote = currentNoteId ? (getNoteById(currentNoteId) || null) : null
+    // Memoize derived values for performance
+    const currentWorkspace = useMemo(() => 
+        workspaces.find(w => w.id === currentWorkspaceId) || workspaces[0],
+        [workspaces, currentWorkspaceId]
+    )
+    
+    const currentTable = useMemo(() => 
+        getTableById(currentTableId) || workspaces[0]?.tables[0],
+        [getTableById, currentTableId, workspaces]
+    )
+    
+    const currentNote = useMemo(() => 
+        currentNoteId ? (getNoteById(currentNoteId) || null) : null,
+        [currentNoteId, getNoteById]
+    )
 
     // Undo/Redo history management
     const MAX_HISTORY = 50
@@ -1198,7 +1210,8 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     }
 
     // ===== TRASH/ARCHIVE FUNCTIONS =====
-    const getArchivedItems = () => {
+    // Memoize archived items for performance
+    const archivedItemsCache = useMemo(() => {
         const tables: (TableItem & { workspaceId: string; workspaceName: string })[] = []
         const notes: (NoteItem & { workspaceId: string; workspaceName: string })[] = []
         
@@ -1216,7 +1229,9 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         notes.sort((a, b) => (b.archivedAt || '').localeCompare(a.archivedAt || ''))
         
         return { tables, notes }
-    }
+    }, [workspaces])
+
+    const getArchivedItems = useCallback(() => archivedItemsCache, [archivedItemsCache])
 
     const restoreTable = (workspaceId: string, tableId: string) => {
         setWorkspacesWithHistory(workspaces.map(ws =>
