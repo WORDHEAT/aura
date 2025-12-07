@@ -17,7 +17,21 @@ import {
     Edit3,
     ChevronUp,
     ChevronDown,
-    FileText
+    FileText,
+    Bold,
+    Italic,
+    Strikethrough,
+    Link,
+    List,
+    ListOrdered,
+    Quote,
+    Heading1,
+    Heading2,
+    Heading3,
+    CheckSquare,
+    Undo2,
+    Redo2,
+    Minus
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -44,6 +58,12 @@ export function NoteEditor({ note }: NoteEditorProps) {
     const [isEditingTitle, setIsEditingTitle] = useState(false)
     const [editingTitle, setEditingTitle] = useState(note.name)
     const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit')
+    const [showFormatBar, setShowFormatBar] = useState(true)
+    
+    // Undo/Redo history
+    const [history, setHistory] = useState<string[]>([note.content])
+    const [historyIndex, setHistoryIndex] = useState(0)
+    const isUndoRedoRef = useRef(false)
     
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const previewRef = useRef<HTMLDivElement>(null)
@@ -58,11 +78,23 @@ export function NoteEditor({ note }: NoteEditorProps) {
         }
     }, [note.content, note.id])
 
-    // Auto-save with debounce - using onChange handler directly
-    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const newContent = e.target.value
+    // Update content and manage history
+    const updateContent = useCallback((newContent: string, addToHistory = true) => {
         setContent(newContent)
         setIsSaving(true)
+        
+        // Add to history for undo/redo (only if not an undo/redo action)
+        if (addToHistory && !isUndoRedoRef.current) {
+            setHistory(prev => {
+                const newHistory = prev.slice(0, historyIndex + 1)
+                newHistory.push(newContent)
+                // Keep max 50 history items
+                if (newHistory.length > 50) newHistory.shift()
+                return newHistory
+            })
+            setHistoryIndex(prev => Math.min(prev + 1, 49))
+        }
+        isUndoRedoRef.current = false
         
         if (saveTimeoutRef.current) {
             clearTimeout(saveTimeoutRef.current)
@@ -73,7 +105,119 @@ export function NoteEditor({ note }: NoteEditorProps) {
             setIsSaving(false)
             setLastSaved(new Date())
         }, 500)
+    }, [note.id, updateNoteContent, historyIndex])
+
+    // Auto-save with debounce - using onChange handler directly
+    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        updateContent(e.target.value)
     }
+
+    // Undo function
+    const handleUndo = useCallback(() => {
+        if (historyIndex > 0) {
+            isUndoRedoRef.current = true
+            const newIndex = historyIndex - 1
+            setHistoryIndex(newIndex)
+            setContent(history[newIndex])
+            updateNoteContent(note.id, history[newIndex])
+            setLastSaved(new Date())
+        }
+    }, [historyIndex, history, note.id, updateNoteContent])
+
+    // Redo function
+    const handleRedo = useCallback(() => {
+        if (historyIndex < history.length - 1) {
+            isUndoRedoRef.current = true
+            const newIndex = historyIndex + 1
+            setHistoryIndex(newIndex)
+            setContent(history[newIndex])
+            updateNoteContent(note.id, history[newIndex])
+            setLastSaved(new Date())
+        }
+    }, [historyIndex, history, note.id, updateNoteContent])
+
+    // Rich text formatting functions
+    const insertFormat = useCallback((prefix: string, suffix: string = prefix, placeholder?: string) => {
+        const textarea = textareaRef.current
+        if (!textarea) return
+        
+        const start = textarea.selectionStart
+        const end = textarea.selectionEnd
+        const selectedText = content.substring(start, end)
+        const textToWrap = selectedText || placeholder || ''
+        
+        const newContent = 
+            content.substring(0, start) + 
+            prefix + textToWrap + suffix + 
+            content.substring(end)
+        
+        updateContent(newContent)
+        
+        // Set cursor position
+        setTimeout(() => {
+            textarea.focus()
+            if (selectedText) {
+                textarea.setSelectionRange(start + prefix.length, start + prefix.length + textToWrap.length)
+            } else {
+                textarea.setSelectionRange(start + prefix.length, start + prefix.length + textToWrap.length)
+            }
+        }, 0)
+    }, [content, updateContent])
+
+    const insertLinePrefix = useCallback((prefix: string) => {
+        const textarea = textareaRef.current
+        if (!textarea) return
+        
+        const start = textarea.selectionStart
+        const end = textarea.selectionEnd
+        
+        // Find the start of the current line
+        const lineStart = content.lastIndexOf('\n', start - 1) + 1
+        const lineEnd = content.indexOf('\n', end)
+        const actualLineEnd = lineEnd === -1 ? content.length : lineEnd
+        
+        const selectedLines = content.substring(lineStart, actualLineEnd)
+        const lines = selectedLines.split('\n')
+        const prefixedLines = lines.map(line => prefix + line).join('\n')
+        
+        const newContent = 
+            content.substring(0, lineStart) + 
+            prefixedLines + 
+            content.substring(actualLineEnd)
+        
+        updateContent(newContent)
+        
+        setTimeout(() => {
+            textarea.focus()
+            textarea.setSelectionRange(lineStart + prefix.length, lineStart + prefixedLines.length)
+        }, 0)
+    }, [content, updateContent])
+
+    // Format action handlers (wrapped in useCallback for stable references)
+    const formatBold = useCallback(() => insertFormat('**', '**', 'bold text'), [insertFormat])
+    const formatItalic = useCallback(() => insertFormat('*', '*', 'italic text'), [insertFormat])
+    const formatStrikethrough = useCallback(() => insertFormat('~~', '~~', 'strikethrough'), [insertFormat])
+    const formatCode = useCallback(() => insertFormat('`', '`', 'code'), [insertFormat])
+    const formatCodeBlock = useCallback(() => insertFormat('```\n', '\n```', 'code block'), [insertFormat])
+    const formatLink = useCallback(() => insertFormat('[', '](url)', 'link text'), [insertFormat])
+    const formatHeading1 = useCallback(() => insertLinePrefix('# '), [insertLinePrefix])
+    const formatHeading2 = useCallback(() => insertLinePrefix('## '), [insertLinePrefix])
+    const formatHeading3 = useCallback(() => insertLinePrefix('### '), [insertLinePrefix])
+    const formatBulletList = useCallback(() => insertLinePrefix('- '), [insertLinePrefix])
+    const formatNumberedList = useCallback(() => insertLinePrefix('1. '), [insertLinePrefix])
+    const formatCheckbox = useCallback(() => insertLinePrefix('- [ ] '), [insertLinePrefix])
+    const formatQuote = useCallback(() => insertLinePrefix('> '), [insertLinePrefix])
+    const formatHorizontalRule = useCallback(() => {
+        const textarea = textareaRef.current
+        if (!textarea) return
+        const start = textarea.selectionStart
+        const newContent = content.substring(0, start) + '\n---\n' + content.substring(start)
+        updateContent(newContent)
+        setTimeout(() => {
+            textarea.focus()
+            textarea.setSelectionRange(start + 5, start + 5)
+        }, 0)
+    }, [content, updateContent])
 
     // Cleanup timeout on unmount
     useEffect(() => {
@@ -94,24 +238,50 @@ export function NoteEditor({ note }: NoteEditorProps) {
     // Handle keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            const isMod = e.ctrlKey || e.metaKey
+            
+            if (isMod && e.key === 'f') {
                 e.preventDefault()
                 setShowSearch(true)
             }
             if (e.key === 'Escape' && showSearch) {
                 setShowSearch(false)
             }
-            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            if (isMod && e.key === 's') {
                 e.preventDefault()
                 updateNoteContent(note.id, content)
                 setIsSaving(false)
                 setLastSaved(new Date())
             }
+            // Undo/Redo
+            if (isMod && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault()
+                handleUndo()
+            }
+            if (isMod && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault()
+                handleRedo()
+            }
+            // Formatting shortcuts (only in edit mode)
+            if (viewMode !== 'preview' && isMod) {
+                if (e.key === 'b') {
+                    e.preventDefault()
+                    formatBold()
+                }
+                if (e.key === 'i') {
+                    e.preventDefault()
+                    formatItalic()
+                }
+                if (e.key === 'k') {
+                    e.preventDefault()
+                    formatLink()
+                }
+            }
         }
         
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [showSearch, note.id, content, updateNoteContent])
+    }, [showSearch, note.id, content, updateNoteContent, handleUndo, handleRedo, viewMode, formatBold, formatItalic, formatLink])
 
     // Search functionality - computed from searchQuery and content
     const computedSearchResults = useMemo(() => {
@@ -399,6 +569,164 @@ export function NoteEditor({ note }: NoteEditorProps) {
                     </button>
                 </div>
             </div>
+
+            {/* Format Bar */}
+            {showFormatBar && viewMode !== 'preview' && (
+                <div className="flex items-center gap-1 px-4 py-2 bg-[#1a1a1a] border-b border-[#373737] overflow-x-auto custom-scrollbar">
+                    {/* Undo/Redo */}
+                    <button
+                        onClick={handleUndo}
+                        disabled={historyIndex <= 0}
+                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Undo (Ctrl+Z)"
+                    >
+                        <Undo2 size={16} />
+                    </button>
+                    <button
+                        onClick={handleRedo}
+                        disabled={historyIndex >= history.length - 1}
+                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Redo (Ctrl+Y)"
+                    >
+                        <Redo2 size={16} />
+                    </button>
+
+                    <div className="w-px h-5 bg-[#373737] mx-1" />
+
+                    {/* Text Formatting */}
+                    <button
+                        onClick={formatBold}
+                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+                        title="Bold (Ctrl+B)"
+                    >
+                        <Bold size={16} />
+                    </button>
+                    <button
+                        onClick={formatItalic}
+                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+                        title="Italic (Ctrl+I)"
+                    >
+                        <Italic size={16} />
+                    </button>
+                    <button
+                        onClick={formatStrikethrough}
+                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+                        title="Strikethrough"
+                    >
+                        <Strikethrough size={16} />
+                    </button>
+                    <button
+                        onClick={formatCode}
+                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+                        title="Inline Code"
+                    >
+                        <Code2 size={16} />
+                    </button>
+
+                    <div className="w-px h-5 bg-[#373737] mx-1" />
+
+                    {/* Headings */}
+                    <button
+                        onClick={formatHeading1}
+                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+                        title="Heading 1"
+                    >
+                        <Heading1 size={16} />
+                    </button>
+                    <button
+                        onClick={formatHeading2}
+                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+                        title="Heading 2"
+                    >
+                        <Heading2 size={16} />
+                    </button>
+                    <button
+                        onClick={formatHeading3}
+                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+                        title="Heading 3"
+                    >
+                        <Heading3 size={16} />
+                    </button>
+
+                    <div className="w-px h-5 bg-[#373737] mx-1" />
+
+                    {/* Lists */}
+                    <button
+                        onClick={formatBulletList}
+                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+                        title="Bullet List"
+                    >
+                        <List size={16} />
+                    </button>
+                    <button
+                        onClick={formatNumberedList}
+                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+                        title="Numbered List"
+                    >
+                        <ListOrdered size={16} />
+                    </button>
+                    <button
+                        onClick={formatCheckbox}
+                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+                        title="Checkbox"
+                    >
+                        <CheckSquare size={16} />
+                    </button>
+
+                    <div className="w-px h-5 bg-[#373737] mx-1" />
+
+                    {/* Other */}
+                    <button
+                        onClick={formatLink}
+                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+                        title="Link (Ctrl+K)"
+                    >
+                        <Link size={16} />
+                    </button>
+                    <button
+                        onClick={formatQuote}
+                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+                        title="Blockquote"
+                    >
+                        <Quote size={16} />
+                    </button>
+                    <button
+                        onClick={formatCodeBlock}
+                        className="px-2 py-1 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors text-xs font-mono"
+                        title="Code Block"
+                    >
+                        {"</>"}
+                    </button>
+                    <button
+                        onClick={formatHorizontalRule}
+                        className="p-1.5 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+                        title="Horizontal Rule"
+                    >
+                        <Minus size={16} />
+                    </button>
+
+                    <div className="flex-1" />
+
+                    {/* Toggle Format Bar */}
+                    <button
+                        onClick={() => setShowFormatBar(false)}
+                        className="p-1 rounded text-[#6b6b6b] hover:text-[#e3e3e3] transition-colors"
+                        title="Hide format bar"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+            )}
+
+            {/* Show Format Bar Button (when hidden) */}
+            {!showFormatBar && viewMode !== 'preview' && (
+                <button
+                    onClick={() => setShowFormatBar(true)}
+                    className="w-full py-1 bg-[#1a1a1a] border-b border-[#373737] text-[#6b6b6b] hover:text-[#e3e3e3] text-xs transition-colors"
+                >
+                    Show formatting toolbar
+                </button>
+            )}
 
             {/* Search & Replace Bar */}
             {showSearch && (
