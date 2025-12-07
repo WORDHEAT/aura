@@ -114,160 +114,195 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
             {/* Backdrop */}
             <div 
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                className="absolute inset-0 bg-black/70 backdrop-blur-sm"
                 onClick={onClose}
             />
 
-            {/* Modal */}
-            <div className="relative bg-[#202020] border border-[#373737] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-[#373737]">
-                    <h2 className="text-lg font-semibold text-white">Edit Profile</h2>
+            {/* Modal - Full screen on mobile, centered card on desktop */}
+            <div className="relative bg-[#191919] sm:bg-[#202020] border-t sm:border border-[#373737] sm:rounded-2xl shadow-2xl w-full sm:max-w-md max-h-[95vh] sm:max-h-[85vh] flex flex-col animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
+                {/* Header - Sticky */}
+                <div className="sticky top-0 z-10 flex items-center justify-between px-4 sm:px-6 py-4 border-b border-[#373737] bg-[#191919] sm:bg-[#202020]">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                            <User size={16} className="text-white" />
+                        </div>
+                        <div>
+                            <h2 className="text-base sm:text-lg font-semibold text-white">Edit Profile</h2>
+                            <p className="text-xs text-[#6b6b6b] hidden sm:block">Manage your account settings</p>
+                        </div>
+                    </div>
                     <button
                         onClick={onClose}
-                        className="p-1 text-[#6b6b6b] hover:text-white hover:bg-[#2a2a2a] rounded-lg transition-colors"
+                        className="p-2 text-[#6b6b6b] hover:text-white hover:bg-[#2a2a2a] rounded-xl transition-all active:scale-95"
                     >
                         <X size={20} />
                     </button>
                 </div>
 
-                {/* Content */}
-                <div className="p-6 space-y-6">
-                    {/* Avatar */}
-                    <div className="flex flex-col items-center">
-                        <div className="relative group">
-                            {avatarUrl ? (
-                                <img 
-                                    src={avatarUrl} 
-                                    alt="Avatar" 
-                                    className="w-24 h-24 rounded-full object-cover border-2 border-[#373737]"
-                                />
-                            ) : (
-                                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-3xl font-medium">
-                                    {name?.charAt(0).toUpperCase() || <User size={40} />}
+                {/* Content - Scrollable */}
+                <div className="flex-1 overflow-y-auto overscroll-contain">
+                    <div className="p-4 sm:p-6 space-y-5">
+                        {/* Avatar Section */}
+                        <div className="flex flex-col items-center py-2">
+                            <div className="relative group">
+                                <div className="relative">
+                                    {avatarUrl ? (
+                                        <img 
+                                            src={avatarUrl} 
+                                            alt="Avatar" 
+                                            className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover ring-4 ring-[#373737] ring-offset-2 ring-offset-[#191919]"
+                                        />
+                                    ) : (
+                                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-white text-2xl sm:text-3xl font-semibold ring-4 ring-[#373737] ring-offset-2 ring-offset-[#191919]">
+                                            {name?.charAt(0).toUpperCase() || <User size={32} />}
+                                        </div>
+                                    )}
+                                    
+                                    {/* Camera overlay */}
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isUploading}
+                                        className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200"
+                                    >
+                                        {isUploading ? (
+                                            <Loader2 size={24} className="text-white animate-spin" />
+                                        ) : (
+                                            <Camera size={24} className="text-white" />
+                                        )}
+                                    </button>
+                                    
+                                    {/* Edit badge */}
+                                    <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center border-2 border-[#191919] shadow-lg">
+                                        <Camera size={12} className="text-white" />
+                                    </div>
                                 </div>
-                            )}
-                            
-                            <button
+                                
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleAvatarUpload}
+                                    className="hidden"
+                                />
+                            </div>
+                            <button 
                                 onClick={() => fileInputRef.current?.click()}
-                                disabled={isUploading}
-                                className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="mt-3 text-xs text-blue-400 hover:text-blue-300 transition-colors"
                             >
-                                {isUploading ? (
-                                    <Loader2 size={24} className="text-white animate-spin" />
-                                ) : (
-                                    <Camera size={24} className="text-white" />
-                                )}
+                                Change photo
                             </button>
+                        </div>
+
+                        {/* Form Fields */}
+                        <div className="space-y-4">
+                            {/* Name */}
+                            <div>
+                                <label className="block text-xs font-medium text-[#9b9b9b] uppercase tracking-wide mb-2">
+                                    Display Name
+                                </label>
+                                <input
+                                    type="text"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    placeholder="Your name"
+                                    className="w-full px-4 py-3 bg-[#2a2a2a] border border-[#373737] rounded-xl text-white placeholder-[#6b6b6b] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
+                                />
+                            </div>
+
+                            {/* Email (read-only) */}
+                            <div>
+                                <label className="block text-xs font-medium text-[#9b9b9b] uppercase tracking-wide mb-2">
+                                    Email
+                                </label>
+                                <input
+                                    type="email"
+                                    value={user?.email || ''}
+                                    disabled
+                                    className="w-full px-4 py-3 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl text-[#6b6b6b] cursor-not-allowed"
+                                />
+                                <p className="mt-1.5 text-xs text-[#6b6b6b] flex items-center gap-1">
+                                    <span className="w-1 h-1 bg-[#6b6b6b] rounded-full"></span>
+                                    Email cannot be changed
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Telegram Section */}
+                        <div className="p-4 bg-gradient-to-br from-[#1a1a1a] to-[#1f1f1f] border border-[#373737] rounded-xl">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                                    <Send size={18} className="text-blue-400" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-white">Telegram Notifications</h3>
+                                    <p className="text-xs text-[#6b6b6b]">Get reminders on your phone</p>
+                                </div>
+                            </div>
                             
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/*"
-                                onChange={handleAvatarUpload}
-                                className="hidden"
-                            />
-                        </div>
-                        <p className="mt-2 text-xs text-[#6b6b6b]">Click to change avatar</p>
-                    </div>
-
-                    {/* Name */}
-                    <div>
-                        <label className="block text-sm font-medium text-[#9b9b9b] mb-2">
-                            Display Name
-                        </label>
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="Your name"
-                            className="w-full px-4 py-3 bg-[#2a2a2a] border border-[#373737] rounded-lg text-white placeholder-[#6b6b6b] outline-none focus:border-blue-500 transition-colors"
-                        />
-                    </div>
-
-                    {/* Email (read-only) */}
-                    <div>
-                        <label className="block text-sm font-medium text-[#9b9b9b] mb-2">
-                            Email
-                        </label>
-                        <input
-                            type="email"
-                            value={user?.email || ''}
-                            disabled
-                            className="w-full px-4 py-3 bg-[#1a1a1a] border border-[#373737] rounded-lg text-[#6b6b6b] cursor-not-allowed"
-                        />
-                        <p className="mt-1 text-xs text-[#6b6b6b]">Email cannot be changed</p>
-                    </div>
-
-                    {/* Telegram Notifications */}
-                    <div className="p-4 bg-[#1a1a1a] border border-[#373737] rounded-lg">
-                        <div className="flex items-center gap-2 mb-3">
-                            <Send size={18} className="text-blue-400" />
-                            <h3 className="text-sm font-medium text-white">Telegram Notifications</h3>
-                        </div>
-                        <p className="text-xs text-[#6b6b6b] mb-3">
-                            Get reminder notifications on Telegram. Start our bot to get your Chat ID:
-                        </p>
-                        <a 
-                            href="https://t.me/AuraTableBot" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 px-3 py-2 bg-blue-500/20 text-blue-400 text-xs rounded-lg hover:bg-blue-500/30 transition-colors mb-3"
-                        >
-                            <ExternalLink size={14} />
-                            Open @AuraTableBot
-                        </a>
-                        <div className="mt-3">
-                            <label className="block text-xs text-[#6b6b6b] mb-1.5">
-                                Your Telegram Chat ID
-                            </label>
-                            <div className="flex gap-2">
+                            <a 
+                                href="https://t.me/AuraTableBot" 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 text-sm font-medium rounded-xl transition-all active:scale-[0.98]"
+                            >
+                                <ExternalLink size={16} />
+                                Open @AuraTableBot
+                            </a>
+                            
+                            <div className="mt-4">
+                                <label className="block text-xs font-medium text-[#9b9b9b] uppercase tracking-wide mb-2">
+                                    Chat ID
+                                </label>
                                 <input
                                     type="text"
                                     value={telegramChatId}
                                     onChange={(e) => setTelegramChatId(e.target.value)}
                                     placeholder="e.g., 123456789"
-                                    className="flex-1 px-3 py-2 bg-[#2a2a2a] border border-[#373737] rounded-lg text-white placeholder-[#6b6b6b] text-sm outline-none focus:border-blue-500 transition-colors"
+                                    className="w-full px-4 py-3 bg-[#2a2a2a] border border-[#373737] rounded-xl text-white placeholder-[#6b6b6b] text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all"
                                 />
+                                <p className="mt-2 text-xs text-[#6b6b6b] flex items-center gap-1.5">
+                                    <Bell size={12} className="text-blue-400" />
+                                    Get your ID from @userinfobot on Telegram
+                                </p>
                             </div>
-                            <p className="mt-1.5 text-xs text-[#6b6b6b]">
-                                <Bell size={10} className="inline mr-1" />
-                                Start the bot and send /start to get your Chat ID
-                            </p>
                         </div>
+
+                        {/* Status Messages */}
+                        {error && (
+                            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm flex items-start gap-3">
+                                <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                    <X size={12} />
+                                </div>
+                                {error}
+                            </div>
+                        )}
+
+                        {success && (
+                            <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-400 text-sm flex items-center gap-3">
+                                <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                                    <Check size={12} />
+                                </div>
+                                Profile updated successfully!
+                            </div>
+                        )}
                     </div>
-
-                    {/* Error */}
-                    {error && (
-                        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
-                            {error}
-                        </div>
-                    )}
-
-                    {/* Success */}
-                    {success && (
-                        <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-sm flex items-center gap-2">
-                            <Check size={16} />
-                            Profile updated successfully!
-                        </div>
-                    )}
                 </div>
 
-                {/* Footer */}
-                <div className="flex gap-3 px-6 py-4 border-t border-[#373737] bg-[#1a1a1a]">
+                {/* Footer - Sticky */}
+                <div className="sticky bottom-0 flex gap-3 px-4 sm:px-6 py-4 border-t border-[#373737] bg-[#191919] sm:bg-[#1a1a1a]">
                     <button
                         onClick={onClose}
-                        className="flex-1 px-4 py-2.5 text-sm text-[#e3e3e3] hover:bg-[#2a2a2a] rounded-lg transition-colors"
+                        className="flex-1 px-4 py-3 text-sm font-medium text-[#e3e3e3] bg-[#2a2a2a] hover:bg-[#333] rounded-xl transition-all active:scale-[0.98]"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="flex-1 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                        className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
                     >
                         {isSaving ? (
                             <>
