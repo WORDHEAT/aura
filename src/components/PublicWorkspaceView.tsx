@@ -241,18 +241,27 @@ export function PublicWorkspaceView() {
                 </aside>
 
                 {/* Main content */}
-                <main className="min-w-0">
+                <main className="min-w-0 flex-1">
                     {selectedTable && (
                         <div className="bg-[#202020] rounded-xl border border-[#373737] overflow-hidden">
-                            <div className="px-4 py-3 border-b border-[#373737]">
-                                <h2 className="text-lg font-semibold text-white">{selectedTable.name}</h2>
+                            <div className="px-5 py-4 border-b border-[#373737] flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <TableIcon size={20} className="text-blue-400" />
+                                    <h2 className="text-lg font-semibold text-white">{selectedTable.name}</h2>
+                                </div>
+                                <span className="text-xs text-[#6b6b6b]">
+                                    {selectedTable.rows.length} row{selectedTable.rows.length !== 1 ? 's' : ''} • {selectedTable.columns.length} column{selectedTable.columns.length !== 1 ? 's' : ''}
+                                </span>
                             </div>
                             <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-[#252525]">
+                                <table className="w-full text-sm" style={{ tableLayout: 'auto' }}>
+                                    <thead className="bg-[#252525] sticky top-0">
                                         <tr>
+                                            <th className="px-3 py-3 text-center text-[#6b6b6b] font-medium border-b border-r border-[#373737] w-12">
+                                                #
+                                            </th>
                                             {selectedTable.columns.map(col => (
-                                                <th key={col.id} className="px-4 py-3 text-left text-[#e0e0e0] font-medium border-b border-[#373737]">
+                                                <th key={col.id} className="px-4 py-3 text-left text-[#e0e0e0] font-medium border-b border-[#373737] min-w-[120px]">
                                                     {col.title}
                                                 </th>
                                             ))}
@@ -260,7 +269,13 @@ export function PublicWorkspaceView() {
                                     </thead>
                                     <tbody>
                                         {selectedTable.rows.map((row, idx) => (
-                                            <tr key={row.id} className={idx % 2 === 0 ? 'bg-[#202020]' : 'bg-[#1a1a1a]'}>
+                                            <tr 
+                                                key={row.id} 
+                                                className={`${idx % 2 === 0 ? 'bg-[#202020]' : 'bg-[#1c1c1c]'} hover:bg-[#2a2a2a] transition-colors`}
+                                            >
+                                                <td className="px-3 py-3 text-center text-[#6b6b6b] border-b border-r border-[#373737] text-xs">
+                                                    {idx + 1}
+                                                </td>
                                                 {selectedTable.columns.map(col => (
                                                     <td key={col.id} className="px-4 py-3 text-[#e0e0e0] border-b border-[#373737]">
                                                         {String(row.cells[col.id] || '')}
@@ -271,8 +286,9 @@ export function PublicWorkspaceView() {
                                     </tbody>
                                 </table>
                                 {selectedTable.rows.length === 0 && (
-                                    <div className="p-8 text-center text-[#6b6b6b]">
-                                        This table is empty
+                                    <div className="p-12 text-center">
+                                        <TableIcon size={48} className="mx-auto text-[#373737] mb-4" />
+                                        <p className="text-[#6b6b6b]">This table is empty</p>
                                     </div>
                                 )}
                             </div>
@@ -281,17 +297,24 @@ export function PublicWorkspaceView() {
 
                     {selectedNote && (
                         <div className="bg-[#202020] rounded-xl border border-[#373737] overflow-hidden">
-                            <div className="px-4 py-3 border-b border-[#373737]">
+                            <div className="px-5 py-4 border-b border-[#373737] flex items-center gap-3">
+                                <FileText size={20} className="text-blue-400" />
                                 <h2 className="text-lg font-semibold text-white">{selectedNote.name}</h2>
                             </div>
-                            <div className={`p-4 text-[#e0e0e0] whitespace-pre-wrap ${selectedNote.isMonospace ? 'font-mono text-sm' : ''}`}>
-                                {selectedNote.content || <span className="text-[#6b6b6b]">This note is empty</span>}
+                            <div className={`p-5 text-[#e0e0e0] whitespace-pre-wrap leading-relaxed ${selectedNote.isMonospace ? 'font-mono text-sm bg-[#1a1a1a]' : ''}`}>
+                                {selectedNote.content || (
+                                    <div className="text-center py-8">
+                                        <FileText size={48} className="mx-auto text-[#373737] mb-4" />
+                                        <p className="text-[#6b6b6b]">This note is empty</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
 
                     {!selectedTable && !selectedNote && (
-                        <div className="bg-[#202020] rounded-xl border border-[#373737] p-8 text-center">
+                        <div className="bg-[#202020] rounded-xl border border-[#373737] p-12 text-center">
+                            <Lock size={48} className="mx-auto text-[#373737] mb-4" />
                             <p className="text-[#6b6b6b]">Select a table or note from the sidebar</p>
                         </div>
                     )}
