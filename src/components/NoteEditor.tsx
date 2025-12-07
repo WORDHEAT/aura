@@ -840,7 +840,7 @@ export function NoteEditor({ note }: NoteEditorProps) {
                                 tabSize: 4,
                             }}
                             placeholder="Start writing... (Supports Markdown)"
-                            spellCheck={!note.isMonospace}
+                            spellCheck={false}
                         />
                     </div>
                 )}
