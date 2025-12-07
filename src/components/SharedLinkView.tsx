@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { syncService } from '../services/SyncService'
-import { Loader2, ArrowLeft, Lock, TableIcon, FileText, Clock, AlertCircle } from 'lucide-react'
+import { Loader2, ArrowLeft, Lock, TableIcon, FileText, Clock, AlertCircle, Save, Check } from 'lucide-react'
 
 interface SharedTable {
     id: string
@@ -34,6 +34,84 @@ export function SharedLinkView() {
     const [allowEdit, setAllowEdit] = useState(false)
     const [activeTab, setActiveTab] = useState<'tables' | 'notes'>('tables')
     const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+    const [isSaving, setIsSaving] = useState(false)
+    const [saveSuccess, setSaveSuccess] = useState(false)
+    const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null)
+    const [editValue, setEditValue] = useState('')
+
+    // Handle cell edit
+    const handleCellClick = (rowId: string, colId: string, currentValue: string) => {
+        if (!allowEdit) return
+        setEditingCell({ rowId, colId })
+        setEditValue(currentValue)
+    }
+
+    // Save cell edit
+    const handleCellSave = useCallback(async () => {
+        if (!editingCell || !workspace || !selectedItemId) return
+
+        const table = workspace.tables.find(t => t.id === selectedItemId)
+        if (!table) return
+
+        // Update local state
+        const updatedRows = table.rows.map(row => 
+            row.id === editingCell.rowId 
+                ? { ...row, cells: { ...row.cells, [editingCell.colId]: editValue } }
+                : row
+        )
+
+        setWorkspace(prev => prev ? {
+            ...prev,
+            tables: prev.tables.map(t => 
+                t.id === selectedItemId ? { ...t, rows: updatedRows } : t
+            )
+        } : null)
+
+        // Save to database
+        setIsSaving(true)
+        try {
+            await supabase
+                .from('tables')
+                .update({ rows: updatedRows })
+                .eq('id', selectedItemId)
+            
+            setSaveSuccess(true)
+            setTimeout(() => setSaveSuccess(false), 2000)
+        } catch (err) {
+            console.error('Failed to save:', err)
+        } finally {
+            setIsSaving(false)
+            setEditingCell(null)
+        }
+    }, [editingCell, editValue, workspace, selectedItemId])
+
+    // Handle note content edit
+    const handleNoteChange = async (noteId: string, content: string) => {
+        if (!allowEdit || !workspace) return
+
+        setWorkspace(prev => prev ? {
+            ...prev,
+            notes: prev.notes.map(n => 
+                n.id === noteId ? { ...n, content } : n
+            )
+        } : null)
+
+        // Debounced save
+        setIsSaving(true)
+        try {
+            await supabase
+                .from('notes')
+                .update({ content })
+                .eq('id', noteId)
+            
+            setSaveSuccess(true)
+            setTimeout(() => setSaveSuccess(false), 2000)
+        } catch (err) {
+            console.error('Failed to save note:', err)
+        } finally {
+            setIsSaving(false)
+        }
+    }
 
     useEffect(() => {
         async function validateAndFetch() {
@@ -296,8 +374,24 @@ export function SharedLinkView() {
                                                     {idx + 1}
                                                 </td>
                                                 {selectedTable.columns.map(col => (
-                                                    <td key={col.id} className="px-4 py-3 text-[#e0e0e0] border-b border-[#373737]">
-                                                        {String(row.cells[col.id] || '')}
+                                                    <td 
+                                                        key={col.id} 
+                                                        className={`px-4 py-3 text-[#e0e0e0] border-b border-[#373737] ${allowEdit ? 'cursor-text hover:bg-[#333]' : ''}`}
+                                                        onClick={() => handleCellClick(row.id, col.id, String(row.cells[col.id] || ''))}
+                                                    >
+                                                        {editingCell?.rowId === row.id && editingCell?.colId === col.id ? (
+                                                            <input
+                                                                type="text"
+                                                                value={editValue}
+                                                                onChange={(e) => setEditValue(e.target.value)}
+                                                                onBlur={handleCellSave}
+                                                                onKeyDown={(e) => e.key === 'Enter' && handleCellSave()}
+                                                                className="w-full bg-[#2a2a2a] border border-blue-500 rounded px-2 py-1 text-white outline-none"
+                                                                autoFocus
+                                                            />
+                                                        ) : (
+                                                            String(row.cells[col.id] || '')
+                                                        )}
                                                     </td>
                                                 ))}
                                             </tr>
@@ -316,18 +410,39 @@ export function SharedLinkView() {
 
                     {selectedNote && (
                         <div className="bg-[#202020] rounded-xl border border-[#373737] overflow-hidden">
-                            <div className="px-5 py-4 border-b border-[#373737] flex items-center gap-3">
-                                <FileText size={20} className="text-blue-400" />
-                                <h2 className="text-lg font-semibold text-white">{selectedNote.name}</h2>
-                            </div>
-                            <div className={`p-5 text-[#e0e0e0] whitespace-pre-wrap leading-relaxed ${selectedNote.isMonospace ? 'font-mono text-sm bg-[#1a1a1a]' : ''}`}>
-                                {selectedNote.content || (
-                                    <div className="text-center py-8">
-                                        <FileText size={48} className="mx-auto text-[#373737] mb-4" />
-                                        <p className="text-[#6b6b6b]">This note is empty</p>
-                                    </div>
+                            <div className="px-5 py-4 border-b border-[#373737] flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <FileText size={20} className="text-blue-400" />
+                                    <h2 className="text-lg font-semibold text-white">{selectedNote.name}</h2>
+                                </div>
+                                {isSaving && (
+                                    <span className="text-xs text-[#6b6b6b] flex items-center gap-1">
+                                        <Save size={12} className="animate-pulse" /> Saving...
+                                    </span>
+                                )}
+                                {saveSuccess && (
+                                    <span className="text-xs text-green-400 flex items-center gap-1">
+                                        <Check size={12} /> Saved
+                                    </span>
                                 )}
                             </div>
+                            {allowEdit ? (
+                                <textarea
+                                    value={selectedNote.content}
+                                    onChange={(e) => handleNoteChange(selectedNote.id, e.target.value)}
+                                    className={`w-full min-h-[300px] p-5 bg-transparent text-[#e0e0e0] resize-none outline-none leading-relaxed ${selectedNote.isMonospace ? 'font-mono text-sm' : ''}`}
+                                    placeholder="Start typing..."
+                                />
+                            ) : (
+                                <div className={`p-5 text-[#e0e0e0] whitespace-pre-wrap leading-relaxed ${selectedNote.isMonospace ? 'font-mono text-sm bg-[#1a1a1a]' : ''}`}>
+                                    {selectedNote.content || (
+                                        <div className="text-center py-8">
+                                            <FileText size={48} className="mx-auto text-[#373737] mb-4" />
+                                            <p className="text-[#6b6b6b]">This note is empty</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 
