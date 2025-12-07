@@ -365,17 +365,11 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         
         // Should we ignore this event?
         // 1. If we have pending local changes (haven't pushed yet)
-        // 2. If this is our own echo (within 5 seconds of our push)
-        const shouldIgnore = (source: string) => {
-            if (hasPendingChangesRef.current) {
-                console.log(`📡 Ignoring ${source} - pending local changes`)
-                return true
-            }
+        // 2. If this is our own echo (within 2 seconds of our push)
+        const shouldIgnore = () => {
+            if (hasPendingChangesRef.current) return true
             const timeSincePush = Date.now() - lastSyncTimeRef.current
-            if (timeSincePush < 5000) {
-                console.log(`📡 Ignoring ${source} - own echo (${timeSincePush}ms ago)`)
-                return true
-            }
+            if (timeSincePush < 2000) return true // 2 second window for own echo
             return false
         }
 
@@ -387,7 +381,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
 
         // Handle NOTE changes - most common operation
         const handleNoteChange = (payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }) => {
-            if (shouldIgnore('note change')) return
+            if (shouldIgnore()) return
             
             const { eventType } = payload
             console.log(`📡 Note ${eventType} from another device`)
@@ -442,7 +436,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
 
         // Handle TABLE changes
         const handleTableChange = (payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }) => {
-            if (shouldIgnore('table change')) return
+            if (shouldIgnore()) return
             
             const { eventType } = payload
             console.log(`📡 Table ${eventType} from another device`)
@@ -495,7 +489,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
 
         // Handle WORKSPACE changes
         const handleWorkspaceChange = (payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }) => {
-            if (shouldIgnore('workspace change')) return
+            if (shouldIgnore()) return
             
             const { eventType } = payload
             console.log(`📡 Workspace ${eventType} from another device`)
@@ -717,7 +711,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
     }, [isAuthenticated, user])
 
-    // Auto-push changes to cloud (debounced)
+    // Auto-push changes to cloud - IMMEDIATE (300ms debounce just for rapid typing)
     useEffect(() => {
         // Skip if not authenticated
         if (!isAuthenticated || !user) {
@@ -729,54 +723,41 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         if (isInitialLoadRef.current) {
             isInitialLoadRef.current = false
             prevWorkspacesRef.current = JSON.stringify(workspaces)
-            console.log('🔄 Initial load - skipping push')
             return
         }
         
         // Skip if this is a remote update (from real-time listener or sync)
         if (isRemoteUpdateRef.current) {
-            isRemoteUpdateRef.current = false // Reset the flag
+            isRemoteUpdateRef.current = false
             prevWorkspacesRef.current = JSON.stringify(workspaces)
-            console.log('📡 Skipping push - remote update')
-            return
-        }
-        
-        // Skip if we just synced from cloud (prevents pushing cloud data back to cloud)
-        const timeSinceSync = Date.now() - lastSyncTimeRef.current
-        if (timeSinceSync < 1000) {
-            prevWorkspacesRef.current = JSON.stringify(workspaces)
-            console.log(`📡 Skipping push - just synced (${timeSinceSync}ms ago)`)
             return
         }
 
         // Check if workspaces actually changed
         const currentWorkspacesJson = JSON.stringify(workspaces)
         if (currentWorkspacesJson === prevWorkspacesRef.current) {
-            console.log('📦 No actual change detected')
             return
         }
         prevWorkspacesRef.current = currentWorkspacesJson
         
-        // Mark that we have pending local changes
+        // Mark pending and push FAST (300ms debounce just to batch rapid keystrokes)
         hasPendingChangesRef.current = true
-        console.log('📝 LOCAL CHANGE DETECTED - will push in 1.5s')
 
-        // Debounce the sync (wait 1.5 seconds after last change)
         if (syncTimeoutRef.current) {
             clearTimeout(syncTimeoutRef.current)
         }
 
         syncTimeoutRef.current = setTimeout(async () => {
-            // Use ref to get latest workspaces (not stale closure)
             const latestWorkspaces = workspacesRef.current
-            console.log('⏰ Debounce complete - pushing to cloud now...')
+            console.log('⚡ Pushing changes to cloud...')
             const success = await pushToCloud(latestWorkspaces)
-            console.log('☁️ Push result:', success ? 'SUCCESS' : 'FAILED')
-            // Only clear pending flag if ALL operations succeeded
             if (success) {
                 hasPendingChangesRef.current = false
+                console.log('✅ Push complete')
+            } else {
+                console.log('❌ Push failed')
             }
-        }, 1500)
+        }, 300) // 300ms - fast enough to feel instant, slow enough to batch typing
 
         return () => {
             if (syncTimeoutRef.current) {
