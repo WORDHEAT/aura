@@ -815,6 +815,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         if (isInitialLoadRef.current) {
             isInitialLoadRef.current = false
             prevWorkspacesRef.current = JSON.stringify(workspaces)
+            console.log('🔄 Initial load - skipping push')
             return
         }
         
@@ -822,26 +823,29 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         if (isRemoteUpdateRef.current) {
             isRemoteUpdateRef.current = false // Reset the flag
             prevWorkspacesRef.current = JSON.stringify(workspaces)
-            console.log('📡 Skipping push - this is a remote update')
+            console.log('📡 Skipping push - remote update')
             return
         }
         
         // Skip if we just synced from cloud (prevents pushing cloud data back to cloud)
-        if (Date.now() - lastSyncTimeRef.current < 1000) {
+        const timeSinceSync = Date.now() - lastSyncTimeRef.current
+        if (timeSinceSync < 1000) {
             prevWorkspacesRef.current = JSON.stringify(workspaces)
+            console.log(`📡 Skipping push - just synced (${timeSinceSync}ms ago)`)
             return
         }
 
         // Check if workspaces actually changed
         const currentWorkspacesJson = JSON.stringify(workspaces)
         if (currentWorkspacesJson === prevWorkspacesRef.current) {
+            console.log('📦 No actual change detected')
             return
         }
         prevWorkspacesRef.current = currentWorkspacesJson
         
         // Mark that we have pending local changes
         hasPendingChangesRef.current = true
-        console.log('📝 Local change detected, will push in 1.5s')
+        console.log('📝 LOCAL CHANGE DETECTED - will push in 1.5s')
 
         // Debounce the sync (wait 1.5 seconds after last change)
         if (syncTimeoutRef.current) {
@@ -851,7 +855,9 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         syncTimeoutRef.current = setTimeout(async () => {
             // Use ref to get latest workspaces (not stale closure)
             const latestWorkspaces = workspacesRef.current
+            console.log('⏰ Debounce complete - pushing to cloud now...')
             const success = await pushToCloud(latestWorkspaces)
+            console.log('☁️ Push result:', success ? 'SUCCESS' : 'FAILED')
             // Only clear pending flag if ALL operations succeeded
             if (success) {
                 hasPendingChangesRef.current = false
