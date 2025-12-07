@@ -216,6 +216,8 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const hasPendingChangesRef = useRef(false)
     const initialSyncDoneRef = useRef(false)
     const lastSyncTimeRef = useRef<number>(0)
+    // Track if current update is from server (to avoid pushing server data back)
+    const isRemoteUpdateRef = useRef(false)
     
     // Ref to always access latest workspaces (fixes stale closure in real-time listener)
     const workspacesRef = useRef(workspaces)
@@ -351,6 +353,8 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     console.log('🔀 Smart merge complete:', finalWorkspaces.length, 'workspaces')
                 }
                 
+                // Mark as remote update to prevent push loop
+                isRemoteUpdateRef.current = true
                 setWorkspaces(finalWorkspaces)
                 
                 // Update current workspace/table if needed
@@ -461,6 +465,12 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             return false
         }
 
+        // Helper to update workspaces without triggering push
+        const setWorkspacesFromRemote = (updater: (prev: Workspace[]) => Workspace[]) => {
+            isRemoteUpdateRef.current = true
+            setWorkspaces(updater)
+        }
+
         // Handle NOTE changes - most common operation
         const handleNoteChange = (payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }) => {
             if (shouldIgnore('note change')) return
@@ -480,7 +490,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     wordWrap: n.word_wrap as boolean ?? true
                 }
                 const workspaceId = n.workspace_id as string
-                setWorkspaces(prev => prev.map(ws => 
+                setWorkspacesFromRemote(prev => prev.map(ws => 
                     ws.id === workspaceId 
                         ? { ...ws, notes: [...ws.notes.filter(x => x.id !== newNote.id), newNote] }
                         : ws
@@ -498,7 +508,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 }
                 const newWorkspaceId = n.workspace_id as string
                 // Remove from old workspace, add to new (handles moves)
-                setWorkspaces(prev => prev.map(ws => {
+                setWorkspacesFromRemote(prev => prev.map(ws => {
                     // Remove from any workspace that has this note
                     const filtered = ws.notes.filter(x => x.id !== updatedNote.id)
                     // Add to target workspace
@@ -509,7 +519,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 }))
             } else if (eventType === 'DELETE' && payload.old) {
                 const noteId = payload.old.id as string
-                setWorkspaces(prev => prev.map(ws => ({
+                setWorkspacesFromRemote(prev => prev.map(ws => ({
                     ...ws,
                     notes: ws.notes.filter(n => n.id !== noteId)
                 })))
@@ -535,7 +545,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     updatedAt: t.updated_at as string
                 }
                 const workspaceId = t.workspace_id as string
-                setWorkspaces(prev => prev.map(ws => 
+                setWorkspacesFromRemote(prev => prev.map(ws => 
                     ws.id === workspaceId 
                         ? { ...ws, tables: [...ws.tables.filter(x => x.id !== newTable.id), newTable] }
                         : ws
@@ -553,7 +563,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 }
                 const newWorkspaceId = t.workspace_id as string
                 // Remove from old workspace, add to new (handles moves)
-                setWorkspaces(prev => prev.map(ws => {
+                setWorkspacesFromRemote(prev => prev.map(ws => {
                     const filtered = ws.tables.filter(x => x.id !== updatedTable.id)
                     if (ws.id === newWorkspaceId) {
                         return { ...ws, tables: [...filtered, updatedTable] }
@@ -562,7 +572,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 }))
             } else if (eventType === 'DELETE' && payload.old) {
                 const tableId = payload.old.id as string
-                setWorkspaces(prev => prev.map(ws => ({
+                setWorkspacesFromRemote(prev => prev.map(ws => ({
                     ...ws,
                     tables: ws.tables.filter(t => t.id !== tableId)
                 })))
@@ -589,10 +599,10 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     visibility: w.visibility as WorkspaceVisibility ?? 'private',
                     updatedAt: w.updated_at as string
                 }
-                setWorkspaces(prev => [...prev.filter(ws => ws.id !== newWorkspace.id), newWorkspace])
+                setWorkspacesFromRemote(prev => [...prev.filter(ws => ws.id !== newWorkspace.id), newWorkspace])
             } else if (eventType === 'UPDATE' && payload.new) {
                 const w = payload.new
-                setWorkspaces(prev => prev.map(ws => 
+                setWorkspacesFromRemote(prev => prev.map(ws => 
                     ws.id === w.id 
                         ? { 
                             ...ws, 
@@ -604,7 +614,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 ))
             } else if (eventType === 'DELETE' && payload.old) {
                 const workspaceId = payload.old.id as string
-                setWorkspaces(prev => prev.filter(ws => ws.id !== workspaceId))
+                setWorkspacesFromRemote(prev => prev.filter(ws => ws.id !== workspaceId))
             }
         }
 
@@ -808,6 +818,14 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             return
         }
         
+        // Skip if this is a remote update (from real-time listener or sync)
+        if (isRemoteUpdateRef.current) {
+            isRemoteUpdateRef.current = false // Reset the flag
+            prevWorkspacesRef.current = JSON.stringify(workspaces)
+            console.log('📡 Skipping push - this is a remote update')
+            return
+        }
+        
         // Skip if we just synced from cloud (prevents pushing cloud data back to cloud)
         if (Date.now() - lastSyncTimeRef.current < 1000) {
             prevWorkspacesRef.current = JSON.stringify(workspaces)
@@ -823,6 +841,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         
         // Mark that we have pending local changes
         hasPendingChangesRef.current = true
+        console.log('📝 Local change detected, will push in 1.5s')
 
         // Debounce the sync (wait 1.5 seconds after last change)
         if (syncTimeoutRef.current) {
