@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react'
-import { X, Camera, Loader2, Check, User } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { X, Camera, Loader2, Check, User, Send, Bell, ExternalLink } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -12,11 +12,32 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     const { user, updateProfile } = useAuth()
     const [name, setName] = useState(user?.name || '')
     const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '')
+    const [telegramChatId, setTelegramChatId] = useState('')
     const [isUploading, setIsUploading] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    // Fetch existing profile data including telegram
+    useEffect(() => {
+        if (isOpen && user) {
+            fetchProfile()
+        }
+    }, [isOpen, user])
+
+    const fetchProfile = async () => {
+        if (!user) return
+        const { data } = await supabase
+            .from('profiles')
+            .select('telegram_chat_id')
+            .eq('id', user.id)
+            .single()
+        
+        if (data?.telegram_chat_id) {
+            setTelegramChatId(data.telegram_chat_id)
+        }
+    }
 
     if (!isOpen) return null
 
@@ -65,7 +86,8 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 .from('profiles')
                 .update({
                     name: name.trim() || user.email?.split('@')[0],
-                    avatar_url: avatarUrl || null
+                    avatar_url: avatarUrl || null,
+                    telegram_chat_id: telegramChatId.trim() || null
                 })
                 .eq('id', user.id)
 
@@ -178,6 +200,44 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                             className="w-full px-4 py-3 bg-[#1a1a1a] border border-[#373737] rounded-lg text-[#6b6b6b] cursor-not-allowed"
                         />
                         <p className="mt-1 text-xs text-[#6b6b6b]">Email cannot be changed</p>
+                    </div>
+
+                    {/* Telegram Notifications */}
+                    <div className="p-4 bg-[#1a1a1a] border border-[#373737] rounded-lg">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Send size={18} className="text-blue-400" />
+                            <h3 className="text-sm font-medium text-white">Telegram Notifications</h3>
+                        </div>
+                        <p className="text-xs text-[#6b6b6b] mb-3">
+                            Get reminder notifications on Telegram. Start our bot to get your Chat ID:
+                        </p>
+                        <a 
+                            href="https://t.me/AuraTableBot" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-blue-500/20 text-blue-400 text-xs rounded-lg hover:bg-blue-500/30 transition-colors mb-3"
+                        >
+                            <ExternalLink size={14} />
+                            Open @AuraTableBot
+                        </a>
+                        <div className="mt-3">
+                            <label className="block text-xs text-[#6b6b6b] mb-1.5">
+                                Your Telegram Chat ID
+                            </label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={telegramChatId}
+                                    onChange={(e) => setTelegramChatId(e.target.value)}
+                                    placeholder="e.g., 123456789"
+                                    className="flex-1 px-3 py-2 bg-[#2a2a2a] border border-[#373737] rounded-lg text-white placeholder-[#6b6b6b] text-sm outline-none focus:border-blue-500 transition-colors"
+                                />
+                            </div>
+                            <p className="mt-1.5 text-xs text-[#6b6b6b]">
+                                <Bell size={10} className="inline mr-1" />
+                                Start the bot and send /start to get your Chat ID
+                            </p>
+                        </div>
                     </div>
 
                     {/* Error */}
