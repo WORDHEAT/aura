@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS profiles (
     email TEXT NOT NULL,
     name TEXT,
     avatar_url TEXT,
+    telegram_chat_id TEXT,
+    timezone TEXT DEFAULT 'UTC',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

@@ -38,6 +38,7 @@ import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { useTableContext, type NoteItem } from '../context/TableContext'
+import { useSettings } from '../context/SettingsContext'
 
 interface NoteEditorProps {
     note: NoteItem
@@ -45,6 +46,7 @@ interface NoteEditorProps {
 
 export function NoteEditor({ note }: NoteEditorProps) {
     const { updateNoteContent, updateNoteSettings, renameNote } = useTableContext()
+    const { settings } = useSettings()
     
     const [content, setContent] = useState(note.content)
     const [isSaving, setIsSaving] = useState(false)
@@ -57,7 +59,7 @@ export function NoteEditor({ note }: NoteEditorProps) {
     const [isFullScreen, setIsFullScreen] = useState(false)
     const [isEditingTitle, setIsEditingTitle] = useState(false)
     const [editingTitle, setEditingTitle] = useState(note.name)
-    const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit')
+    const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>(settings.defaultNoteView)
     const [showFormatBar, setShowFormatBar] = useState(true)
     
     // Undo/Redo history
