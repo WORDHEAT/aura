@@ -4,6 +4,39 @@ import { useAuth } from './AuthContext'
 import { syncService } from '../services/SyncService'
 import { updateRowInTree, deleteRowFromTree, addSiblingToTree, addChildToRowInTree } from '../utils/treeUtils'
 
+// Pending operation for offline queue
+interface PendingOperation {
+    id: string
+    type: 'delete'
+    entityType: 'workspace' | 'table' | 'note'
+    entityId: string
+    workspaceId?: string
+    timestamp: number
+}
+
+// Helper to get/set pending operations from localStorage
+const PENDING_OPS_KEY = 'aura-pending-operations'
+const getPendingOps = (): PendingOperation[] => {
+    try {
+        return JSON.parse(localStorage.getItem(PENDING_OPS_KEY) || '[]')
+    } catch { return [] }
+}
+const savePendingOps = (ops: PendingOperation[]) => {
+    localStorage.setItem(PENDING_OPS_KEY, JSON.stringify(ops))
+}
+const addPendingDelete = (entityType: 'workspace' | 'table' | 'note', entityId: string, workspaceId?: string) => {
+    const ops = getPendingOps()
+    ops.push({
+        id: crypto.randomUUID(),
+        type: 'delete',
+        entityType,
+        entityId,
+        workspaceId,
+        timestamp: Date.now()
+    })
+    savePendingOps(ops)
+}
+
 // A single table within a workspace
 export interface TableItem {
     id: string
@@ -118,6 +151,7 @@ interface TableContextType {
     // Cloud sync
     isSyncing: boolean
     syncError: string | null
+    pendingOpsCount: number
     syncWorkspaces: () => Promise<void>
     setWorkspaceVisibility: (workspaceId: string, visibility: WorkspaceVisibility) => Promise<void>
 }
@@ -210,6 +244,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const { user, isAuthenticated } = useAuth()
     const [isSyncing, setIsSyncing] = useState(false)
     const [syncError, setSyncError] = useState<string | null>(null)
+    const [pendingOpsCount, setPendingOpsCount] = useState(() => getPendingOps().length)
     
     // Simple flags for sync
     const initialSyncDoneRef = useRef(false)
@@ -355,121 +390,113 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const pushToCloud = useCallback(async (workspacesToPush: Workspace[]): Promise<boolean> => {
         if (!isAuthenticated || !user) return false
         
-        let allSucceeded = true
+        let hasErrors = false
+        
         try {
-            // Get existing cloud workspace IDs
-            const cloudWorkspaces = await syncService.fetchWorkspaces()
-            const cloudWorkspaceIds = new Set(cloudWorkspaces.map(ws => ws.id))
-            const localWorkspaceIds = new Set(workspacesToPush.map(ws => ws.id))
-
-            // Create or update workspaces
-            for (let wsIndex = 0; wsIndex < workspacesToPush.length; wsIndex++) {
-                const workspace = workspacesToPush[wsIndex]
-                if (!cloudWorkspaceIds.has(workspace.id)) {
-                    // New workspace - create it first
+            // Helper to update or create
+            const upsertTable = async (workspaceId: string, table: TableItem, position: number) => {
+                try {
+                    await syncService.updateTable(table, position)
+                } catch {
                     try {
-                        await syncService.createWorkspace(workspace, wsIndex)
-                        console.log('✅ Created workspace:', workspace.id, workspace.name)
-                        
-                        // Only create tables/notes if workspace creation succeeded
-                        for (let i = 0; i < workspace.tables.length; i++) {
-                            await syncService.createTable(workspace.id, workspace.tables[i], i)
-                        }
-                        for (let i = 0; i < workspace.notes.length; i++) {
-                            await syncService.createNote(workspace.id, workspace.notes[i], i)
-                        }
-                    } catch (createError) {
-                        console.error('❌ Failed to create workspace:', workspace.id, createError)
-                        allSucceeded = false
-                        continue
-                    }
-                } else {
-                    // Existing workspace - update it (with position)
-                    try {
-                        await syncService.updateWorkspace(workspace, wsIndex)
-                    } catch (updateError) {
-                        console.error('❌ Failed to update workspace:', workspace.id, updateError)
-                        allSucceeded = false
-                        continue
-                    }
-                    
-                    // Get cloud tables/notes for this workspace to detect deletions
-                    const cloudWs = cloudWorkspaces.find(cw => cw.id === workspace.id)
-                    const cloudTableIds = new Set(cloudWs?.tables.map(t => t.id) || [])
-                    const cloudNoteIds = new Set(cloudWs?.notes.map(n => n.id) || [])
-                    const localTableIds = new Set(workspace.tables.map(t => t.id))
-                    const localNoteIds = new Set(workspace.notes.map(n => n.id))
-                    
-                    // Update or create tables (with position for reordering)
-                    for (let tableIdx = 0; tableIdx < workspace.tables.length; tableIdx++) {
-                        const table = workspace.tables[tableIdx]
-                        try {
-                            await syncService.updateTable(table, tableIdx)
-                        } catch {
-                            // Table might not exist, create it
-                            await syncService.createTable(workspace.id, table, tableIdx)
-                        }
-                    }
-                    
-                    // Delete removed tables
-                    for (const cloudTableId of cloudTableIds) {
-                        if (!localTableIds.has(cloudTableId)) {
-                            console.log('🗑️ Deleting table from cloud:', cloudTableId)
-                            try {
-                                await syncService.deleteTable(cloudTableId)
-                                console.log('✅ Table deleted successfully:', cloudTableId)
-                            } catch (deleteError) {
-                                console.error('❌ Failed to delete table:', cloudTableId, deleteError)
-                                allSucceeded = false
-                            }
-                        }
-                    }
-                    
-                    // Update or create notes (with position for reordering)
-                    for (let noteIdx = 0; noteIdx < workspace.notes.length; noteIdx++) {
-                        const note = workspace.notes[noteIdx]
-                        try {
-                            await syncService.updateNote(note, noteIdx)
-                        } catch {
-                            // Note might not exist, create it
-                            await syncService.createNote(workspace.id, note, noteIdx)
-                        }
-                    }
-                    
-                    // Delete removed notes
-                    for (const cloudNoteId of cloudNoteIds) {
-                        if (!localNoteIds.has(cloudNoteId)) {
-                            console.log('🗑️ Deleting note from cloud:', cloudNoteId)
-                            try {
-                                await syncService.deleteNote(cloudNoteId)
-                                console.log('✅ Note deleted successfully:', cloudNoteId)
-                            } catch (deleteError) {
-                                console.error('❌ Failed to delete note:', cloudNoteId, deleteError)
-                                allSucceeded = false
-                            }
-                        }
+                        await syncService.createTable(workspaceId, table, position)
+                    } catch (err) {
+                        console.error('❌ Table sync failed:', table.id, err)
+                        hasErrors = true
                     }
                 }
             }
-
-            // Delete removed workspaces
-            for (const cloudWs of cloudWorkspaces) {
-                if (!localWorkspaceIds.has(cloudWs.id)) {
-                    console.log('🗑️ Deleting workspace from cloud:', cloudWs.id, cloudWs.name)
+            
+            const upsertNote = async (workspaceId: string, note: NoteItem, position: number) => {
+                try {
+                    await syncService.updateNote(note, position)
+                } catch {
                     try {
-                        await syncService.deleteWorkspace(cloudWs.id)
-                        console.log('✅ Workspace deleted successfully:', cloudWs.id)
-                    } catch (deleteError) {
-                        console.error('❌ Failed to delete workspace:', cloudWs.id, deleteError)
-                        allSucceeded = false
+                        await syncService.createNote(workspaceId, note, position)
+                    } catch (err) {
+                        console.error('❌ Note sync failed:', note.id, err)
+                        hasErrors = true
                     }
                 }
             }
-
-            console.log('✅ Synced to cloud - local:', workspacesToPush.length, 'cloud:', cloudWorkspaces.length)
-            return allSucceeded
+            
+            // Process all workspaces
+            const allPromises: Promise<void>[] = []
+            
+            for (const workspace of workspacesToPush) {
+                const isOwner = workspace.ownerId === user.id || !workspace.ownerId
+                const wsIndex = workspacesToPush.indexOf(workspace)
+                
+                // Only owners can create/update workspaces
+                if (isOwner) {
+                    allPromises.push(
+                        syncService.updateWorkspace(workspace, wsIndex)
+                            .catch(() => syncService.createWorkspace(workspace, wsIndex))
+                            .catch(err => {
+                                console.error('❌ Workspace sync failed:', workspace.id, err)
+                                hasErrors = true
+                            })
+                    )
+                }
+                
+                // Update tables in parallel
+                for (let i = 0; i < workspace.tables.length; i++) {
+                    allPromises.push(upsertTable(workspace.id, workspace.tables[i], i))
+                }
+                
+                // Update notes in parallel
+                for (let i = 0; i < workspace.notes.length; i++) {
+                    allPromises.push(upsertNote(workspace.id, workspace.notes[i], i))
+                }
+            }
+            
+            await Promise.all(allPromises)
+            
+            // Process pending deletions
+            const pendingOps = getPendingOps()
+            const successfulDeletes: string[] = []
+            
+            for (const op of pendingOps) {
+                if (op.type === 'delete') {
+                    try {
+                        if (op.entityType === 'workspace') {
+                            await syncService.deleteWorkspace(op.entityId)
+                            console.log('🗑️ Deleted workspace from cloud:', op.entityId)
+                        } else if (op.entityType === 'table') {
+                            await syncService.deleteTable(op.entityId)
+                            console.log('🗑️ Deleted table from cloud:', op.entityId)
+                        } else if (op.entityType === 'note') {
+                            await syncService.deleteNote(op.entityId)
+                            console.log('🗑️ Deleted note from cloud:', op.entityId)
+                        }
+                        successfulDeletes.push(op.id)
+                    } catch (err) {
+                        // Might already be deleted or user lacks permission - mark as successful anyway
+                        console.warn('Delete operation failed (might already be deleted):', op.entityId, err)
+                        successfulDeletes.push(op.id)
+                    }
+                }
+            }
+            
+            // Remove processed operations from queue
+            if (successfulDeletes.length > 0) {
+                const remainingOps = pendingOps.filter(op => !successfulDeletes.includes(op.id))
+                savePendingOps(remainingOps)
+                setPendingOpsCount(remainingOps.length)
+            }
+            
+            if (hasErrors) {
+                console.warn('⚠️ Push completed with some errors')
+                setSyncError('Some items failed to sync')
+            } else {
+                console.log('✅ Push complete')
+                setSyncError(null)
+            }
+            
+            return !hasErrors
         } catch (error) {
             console.error('Push to cloud error:', error)
+            setSyncError('Sync failed')
             return false
         }
     }, [isAuthenticated, user])
@@ -669,6 +696,14 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             alert('Cannot delete the last workspace')
             return
         }
+        
+        // Track deletion for cloud sync
+        const workspace = workspaces.find(w => w.id === id)
+        if (workspace?.ownerId === user?.id || !workspace?.ownerId) {
+            addPendingDelete('workspace', id)
+            setPendingOpsCount(getPendingOps().length)
+        }
+        
         const newWorkspaces = workspaces.filter(w => w.id !== id)
         setWorkspacesWithHistory(newWorkspaces)
         
@@ -784,6 +819,10 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             alert('Cannot delete the last item in a workspace. Add a note first or delete the workspace.')
             return
         }
+        
+        // Track deletion for cloud sync
+        addPendingDelete('table', tableId, workspaceId)
+        setPendingOpsCount(getPendingOps().length)
         
         const newTables = workspace.tables.filter(t => t.id !== tableId)
         setWorkspacesWithHistory(workspaces.map(ws =>
@@ -1042,6 +1081,10 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             return
         }
         
+        // Track deletion for cloud sync
+        addPendingDelete('note', noteId, workspaceId)
+        setPendingOpsCount(getPendingOps().length)
+        
         setWorkspacesWithHistory(workspaces.map(ws =>
             ws.id === workspaceId
                 ? { ...ws, notes: ws.notes.filter(n => n.id !== noteId) }
@@ -1194,6 +1237,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             // Cloud sync
             isSyncing,
             syncError,
+            pendingOpsCount,
             syncWorkspaces,
             setWorkspaceVisibility,
         }}>

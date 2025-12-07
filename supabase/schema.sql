@@ -86,6 +86,10 @@ CREATE POLICY "Users can view their own profile"
     ON profiles FOR SELECT
     USING (auth.uid() = id);
 
+CREATE POLICY "Authenticated users can lookup profiles by email"
+    ON profiles FOR SELECT
+    USING (auth.uid() IS NOT NULL);
+
 CREATE POLICY "Users can update their own profile"
     ON profiles FOR UPDATE
     USING (auth.uid() = id);
@@ -163,6 +167,10 @@ CREATE POLICY "Workspace owners can manage members"
         )
     );
 
+CREATE POLICY "Users can view their own workspace memberships"
+    ON workspace_members FOR SELECT
+    USING (user_id = auth.uid());
+
 CREATE POLICY "Users can view members of workspaces they belong to"
     ON workspace_members FOR SELECT
     USING (
@@ -188,6 +196,15 @@ CREATE POLICY "Users can view tables in team workspaces"
         EXISTS (
             SELECT 1 FROM workspace_members
             WHERE workspace_id = tables.workspace_id AND user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Anyone can view tables in public workspaces"
+    ON tables FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM workspaces
+            WHERE id = tables.workspace_id AND visibility = 'public'
         )
     );
 
@@ -256,6 +273,15 @@ CREATE POLICY "Users can view notes in team workspaces"
         EXISTS (
             SELECT 1 FROM workspace_members
             WHERE workspace_id = notes.workspace_id AND user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Anyone can view notes in public workspaces"
+    ON notes FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM workspaces
+            WHERE id = notes.workspace_id AND visibility = 'public'
         )
     );
 
