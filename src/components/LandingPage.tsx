@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { 
     Table2, FileText, Cloud, Users, Calendar, Bell, 
     ChevronRight, Sparkles, Zap,
-    CheckCircle2, ArrowRight, Menu, X, Github
+    CheckCircle2, ArrowRight, Menu, X
 } from 'lucide-react'
 
 interface LandingPageProps {
@@ -37,10 +37,6 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
                         <div className="hidden md:flex items-center gap-8">
                             <a href="#features" className="text-sm text-white/60 hover:text-white transition-colors">Features</a>
                             <a href="#pricing" className="text-sm text-white/60 hover:text-white transition-colors">Pricing</a>
-                            <a href="https://github.com/WORDHEAT/aura" target="_blank" rel="noopener noreferrer" className="text-sm text-white/60 hover:text-white transition-colors flex items-center gap-1">
-                                <Github size={16} />
-                                GitHub
-                            </a>
                         </div>
 
                         <div className="hidden md:flex items-center gap-4">
@@ -426,11 +422,6 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
                         </div>
                         
                         <div className="flex items-center gap-6 text-sm text-white/40">
-                            <a href="https://github.com/WORDHEAT/aura" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors flex items-center gap-1">
-                                <Github size={16} />
-                                GitHub
-                            </a>
-                            <span>•</span>
                             <span>Made with ❤️</span>
                         </div>
 
