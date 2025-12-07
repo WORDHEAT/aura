@@ -4,10 +4,11 @@ import { useAuth } from '../../context/AuthContext'
 
 interface UserMenuProps {
     onOpenSettings?: () => void
+    onOpenProfile?: () => void
     onOpenAuth: () => void
 }
 
-export function UserMenu({ onOpenSettings, onOpenAuth }: UserMenuProps) {
+export function UserMenu({ onOpenSettings, onOpenProfile, onOpenAuth }: UserMenuProps) {
     const { user, isAuthenticated, signOut, isLoading } = useAuth()
     const [isOpen, setIsOpen] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
@@ -107,7 +108,7 @@ export function UserMenu({ onOpenSettings, onOpenAuth }: UserMenuProps) {
                         <button
                             onClick={() => {
                                 setIsOpen(false)
-                                // TODO: Open profile settings
+                                onOpenProfile?.()
                             }}
                             className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
                         >

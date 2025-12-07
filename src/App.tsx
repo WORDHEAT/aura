@@ -13,6 +13,7 @@ import { SettingsModal } from './components/SettingsModal'
 import { CalendarView } from './components/CalendarView'
 import { useSettings } from './context/SettingsContext'
 import { AuthModal, UserMenu } from './components/Auth'
+import { ProfileModal } from './components/ProfileModal'
 
 function App() {
   const { settings } = useSettings()
@@ -25,6 +26,7 @@ function App() {
   const [viewMode, setViewMode] = useState<'single' | 'all'>(settings.defaultView)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false)
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
 
@@ -185,6 +187,7 @@ function App() {
             <div className="hidden sm:block w-px h-6 bg-[#373737] mx-1" />
             <UserMenu 
               onOpenSettings={() => setIsSettingsOpen(true)} 
+              onOpenProfile={() => setIsProfileOpen(true)}
               onOpenAuth={() => setIsAuthModalOpen(true)} 
             />
           </div>
@@ -474,6 +477,11 @@ function App() {
       <CalendarView
         isOpen={isCalendarOpen}
         onClose={() => setIsCalendarOpen(false)}
+      />
+
+      <ProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
       />
     </div>
   )
