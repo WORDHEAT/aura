@@ -33,7 +33,7 @@ export function ExportImport({ data, onImport }: ExportImportProps) {
                 } else {
                     alert('Invalid table format')
                 }
-            } catch (error) {
+            } catch {
                 alert('Failed to import: Invalid JSON file')
             }
         }

@@ -200,14 +200,10 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event
-        console.log('Drag end:', active.id, 'over:', over?.id)
         if (!over || active.id === over.id) return
 
         const activeInfo = findParent(data.rows, active.id as string)
         const overInfo = findParent(data.rows, over.id as string)
-        
-        console.log('Active info:', activeInfo)
-        console.log('Over info:', overInfo)
 
         if (activeInfo && overInfo && activeInfo.items === overInfo.items) {
             const oldIndex = activeInfo.items.findIndex(r => r.id === active.id)
@@ -848,7 +844,6 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
                                 key={opt.type}
                                 onClick={() => {
                                     const col = data.columns.find(c => c.id === activeSummaryMenu.colId)
-                                    console.log('Selected summary type:', opt.type, 'for col:', col?.id)
                                     if (col) {
                                         updateColumn(col.id, { ...col, summaryType: opt.type as SummaryType })
                                     }

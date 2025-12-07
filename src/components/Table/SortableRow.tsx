@@ -67,9 +67,10 @@ export function SortableRow({
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
     const [activeCellMenu, setActiveCellMenu] = useState<string | null>(null)
 
+    // Reset delete confirm when action menu closes
     useEffect(() => {
         if (activeActionMenu !== row.id && showDeleteConfirm) {
-            setShowDeleteConfirm(false)
+            setShowDeleteConfirm(false) // eslint-disable-line react-hooks/set-state-in-effect
         }
     }, [activeActionMenu, row.id, showDeleteConfirm])
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Globe, Lock, Users, UserPlus, Trash2, Crown, Shield, Pencil, Eye, Loader2, Check, Copy, Link2, Clock, Ban, Plus } from 'lucide-react'
 import { useTableContext, type WorkspaceVisibility } from '../context/TableContext'
@@ -48,22 +48,8 @@ export function WorkspaceSettingsModal({ isOpen, onClose, workspaceId }: Workspa
     const [newLinkAllowEdit, setNewLinkAllowEdit] = useState(false)
     const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null)
 
-    // Load members when modal opens
-    useEffect(() => {
-        if (isOpen && isAuthenticated && workspace?.visibility === 'team') {
-            loadMembers()
-        }
-    }, [isOpen, isAuthenticated, workspace?.visibility])
-
-    // Reset state when workspace changes
-    useEffect(() => {
-        if (workspace) {
-            setVisibility(workspace.visibility || 'private')
-            setEditName(workspace.name)
-        }
-    }, [workspace])
-
-    const loadMembers = async () => {
+    // Load functions
+    const loadMembers = useCallback(async () => {
         setIsLoading(true)
         try {
             const data = await syncService.getWorkspaceMembers(workspaceId)
@@ -73,23 +59,38 @@ export function WorkspaceSettingsModal({ isOpen, onClose, workspaceId }: Workspa
         } finally {
             setIsLoading(false)
         }
-    }
+    }, [workspaceId])
 
-    const loadShareLinks = async () => {
+    const loadShareLinks = useCallback(async () => {
         try {
             const links = await syncService.getShareLinks(workspaceId)
             setShareLinks(links)
         } catch (err) {
             console.error('Failed to load share links:', err)
         }
-    }
+    }, [workspaceId])
+
+    // Load members when modal opens
+    useEffect(() => {
+        if (isOpen && isAuthenticated && workspace?.visibility === 'team') {
+            loadMembers()
+        }
+    }, [isOpen, isAuthenticated, workspace?.visibility, loadMembers])
+
+    // Reset state when workspace changes
+    useEffect(() => {
+        if (workspace) {
+            setVisibility(workspace.visibility || 'private')
+            setEditName(workspace.name)
+        }
+    }, [workspace])
 
     // Load share links when public visibility
     useEffect(() => {
         if (isOpen && isAuthenticated && visibility === 'public') {
             loadShareLinks()
         }
-    }, [isOpen, isAuthenticated, visibility]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [isOpen, isAuthenticated, visibility, loadShareLinks])
 
     const handleCreateShareLink = async () => {
         if (!isAuthenticated) return

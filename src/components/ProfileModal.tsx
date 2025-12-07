@@ -50,26 +50,26 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
     // Fetch existing profile data including telegram and timezone
     useEffect(() => {
+        const fetchProfile = async () => {
+            if (!user) return
+            const { data } = await supabase
+                .from('profiles')
+                .select('telegram_chat_id, timezone')
+                .eq('id', user.id)
+                .single()
+            
+            if (data?.telegram_chat_id) {
+                setTelegramChatId(data.telegram_chat_id)
+            }
+            if (data?.timezone) {
+                setTimezone(data.timezone)
+            }
+        }
+        
         if (isOpen && user) {
             fetchProfile()
         }
     }, [isOpen, user])
-
-    const fetchProfile = async () => {
-        if (!user) return
-        const { data } = await supabase
-            .from('profiles')
-            .select('telegram_chat_id, timezone')
-            .eq('id', user.id)
-            .single()
-        
-        if (data?.telegram_chat_id) {
-            setTelegramChatId(data.telegram_chat_id)
-        }
-        if (data?.timezone) {
-            setTimezone(data.timezone)
-        }
-    }
 
     const handleChangePassword = async () => {
         setPasswordError(null)
