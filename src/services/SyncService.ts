@@ -332,7 +332,7 @@ export class SyncService {
                 position
             })
             .eq('id', table.id)
-            .select()
+            .select('id, updated_at')
 
         if (error) {
             console.error('Error updating table:', error)
@@ -343,6 +343,11 @@ export class SyncService {
         if (!data || data.length === 0) {
             console.log('📋 Table not found in cloud, will be created')
             throw new Error('Table not found')
+        }
+        
+        // Update tracked timestamp to prevent false conflicts on next push
+        if (data[0]?.updated_at) {
+            this.trackTimestamp(table.id, data[0].updated_at)
         }
     }
 
@@ -405,7 +410,7 @@ export class SyncService {
                 word_wrap: note.wordWrap ?? true
             })
             .eq('id', note.id)
-            .select()
+            .select('id, updated_at')
 
         if (updateError) {
             console.error('Error updating note:', updateError)
@@ -417,6 +422,11 @@ export class SyncService {
             console.log('📝 Note not found in cloud, will be created on next full sync')
             // Throw to trigger creation in the calling code
             throw new Error('Note not found')
+        }
+        
+        // Update tracked timestamp to prevent false conflicts on next push
+        if (data[0]?.updated_at) {
+            this.trackTimestamp(note.id, data[0].updated_at)
         }
     }
 
