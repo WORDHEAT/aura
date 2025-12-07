@@ -355,47 +355,80 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const pushToCloud = useCallback(async (workspacesToPush: Workspace[]): Promise<boolean> => {
         if (!isAuthenticated || !user) return false
         
+        let hasErrors = false
+        
         try {
-            // Use Promise.all for parallel updates where safe
-            const updatePromises: Promise<void>[] = []
+            // Helper to update or create with retry
+            const upsertTable = async (workspaceId: string, table: TableItem, position: number) => {
+                try {
+                    await syncService.updateTable(table, position)
+                } catch {
+                    try {
+                        await syncService.createTable(workspaceId, table, position)
+                    } catch (err) {
+                        console.error('❌ Table sync failed:', table.id, err)
+                        hasErrors = true
+                    }
+                }
+            }
+            
+            const upsertNote = async (workspaceId: string, note: NoteItem, position: number) => {
+                try {
+                    await syncService.updateNote(note, position)
+                } catch {
+                    try {
+                        await syncService.createNote(workspaceId, note, position)
+                    } catch (err) {
+                        console.error('❌ Note sync failed:', note.id, err)
+                        hasErrors = true
+                    }
+                }
+            }
+            
+            // Process all workspaces
+            const allPromises: Promise<void>[] = []
             
             for (const workspace of workspacesToPush) {
-                const isOwner = workspace.ownerId === user.id
+                const isOwner = workspace.ownerId === user.id || !workspace.ownerId
+                const wsIndex = workspacesToPush.indexOf(workspace)
                 
-                // Only owners can create/update/delete workspaces
+                // Only owners can create/update workspaces
                 if (isOwner) {
-                    updatePromises.push(
-                        syncService.updateWorkspace(workspace, workspacesToPush.indexOf(workspace))
-                            .catch(() => syncService.createWorkspace(workspace, workspacesToPush.indexOf(workspace)))
+                    allPromises.push(
+                        syncService.updateWorkspace(workspace, wsIndex)
+                            .catch(() => syncService.createWorkspace(workspace, wsIndex))
+                            .catch(err => {
+                                console.error('❌ Workspace sync failed:', workspace.id, err)
+                                hasErrors = true
+                            })
                     )
                 }
                 
-                // Update tables in parallel (owners and team members with edit rights)
+                // Update tables in parallel
                 for (let i = 0; i < workspace.tables.length; i++) {
-                    const table = workspace.tables[i]
-                    updatePromises.push(
-                        syncService.updateTable(table, i)
-                            .catch(() => syncService.createTable(workspace.id, table, i))
-                            .catch(err => console.error('Table sync failed:', err))
-                    )
+                    allPromises.push(upsertTable(workspace.id, workspace.tables[i], i))
                 }
                 
                 // Update notes in parallel
                 for (let i = 0; i < workspace.notes.length; i++) {
-                    const note = workspace.notes[i]
-                    updatePromises.push(
-                        syncService.updateNote(note, i)
-                            .catch(() => syncService.createNote(workspace.id, note, i))
-                            .catch(err => console.error('Note sync failed:', err))
-                    )
+                    allPromises.push(upsertNote(workspace.id, workspace.notes[i], i))
                 }
             }
             
-            await Promise.all(updatePromises)
-            console.log('✅ Push complete')
-            return true
+            await Promise.all(allPromises)
+            
+            if (hasErrors) {
+                console.warn('⚠️ Push completed with some errors')
+                setSyncError('Some items failed to sync')
+            } else {
+                console.log('✅ Push complete')
+                setSyncError(null)
+            }
+            
+            return !hasErrors
         } catch (error) {
             console.error('Push to cloud error:', error)
+            setSyncError('Sync failed')
             return false
         }
     }, [isAuthenticated, user])
