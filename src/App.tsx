@@ -12,6 +12,7 @@ import { LayoutList, LayoutTemplate, Settings, Undo2, Redo2, Plus, FolderPlus, F
 import { useSettings } from './context/SettingsContext'
 import { UserMenu } from './components/Auth'
 import { LandingPage } from './components/LandingPage'
+import { SectionErrorBoundary } from './components/ErrorBoundary'
 
 // Lazy load modals for better initial bundle size
 const SettingsModal = lazy(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })))
@@ -279,11 +280,14 @@ function App() {
         <div className={`lg:grid gap-4 transition-all duration-300 ${isSidebarCollapsed ? 'lg:grid-cols-[60px_1fr]' : 'lg:grid-cols-[280px_1fr]'}`}>
           {/* Sidebar - hidden on mobile, shown on desktop */}
           <aside className="hidden lg:block lg:sticky lg:top-[88px]">
-            <TableSwitcher isCollapsed={isSidebarCollapsed} setIsCollapsed={setIsSidebarCollapsed} />
+            <SectionErrorBoundary name="Sidebar">
+              <TableSwitcher isCollapsed={isSidebarCollapsed} setIsCollapsed={setIsSidebarCollapsed} />
+            </SectionErrorBoundary>
           </aside>
 
           {/* Main Content Area */}
           <main className="min-w-0">
+            <SectionErrorBoundary name="Content">
             {/* Note Editor View - only show in single view mode when a note is current and not in multi-select */}
             {currentItemType === 'note' && currentNote && !showMultiView ? (
               <div className="bg-[#202020] border border-[#373737] rounded-xl overflow-hidden h-[calc(100vh-180px)]">
@@ -535,6 +539,7 @@ function App() {
                 ))}
               </div>
             )}
+            </SectionErrorBoundary>
           </main>
         </div>
       </div>
