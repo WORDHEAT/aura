@@ -12,8 +12,17 @@ import {
     Minimize2,
     Copy,
     Download,
-    Clock
+    Clock,
+    Eye,
+    Edit3,
+    ChevronUp,
+    ChevronDown,
+    FileText
 } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { useTableContext, type NoteItem } from '../context/TableContext'
 
 interface NoteEditorProps {
@@ -34,8 +43,10 @@ export function NoteEditor({ note }: NoteEditorProps) {
     const [isFullScreen, setIsFullScreen] = useState(false)
     const [isEditingTitle, setIsEditingTitle] = useState(false)
     const [editingTitle, setEditingTitle] = useState(note.name)
+    const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit')
     
     const textareaRef = useRef<HTMLTextAreaElement>(null)
+    const previewRef = useRef<HTMLDivElement>(null)
     const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const lineNumbersRef = useRef<HTMLDivElement>(null)
 
@@ -45,7 +56,6 @@ export function NoteEditor({ note }: NoteEditorProps) {
         if (!saveTimeoutRef.current) {
             setContent(note.content)
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [note.content, note.id])
 
     // Auto-save with debounce - using onChange handler directly
@@ -139,17 +149,50 @@ export function NoteEditor({ note }: NoteEditorProps) {
         setContent(newContent)
     }
 
-    const goToNextResult = () => {
-        if (computedSearchResults.length > 0) {
-            setCurrentSearchIndex((prev) => (prev + 1) % computedSearchResults.length)
-        }
-    }
+    const scrollToSearchResult = useCallback((index: number) => {
+        if (!textareaRef.current || computedSearchResults.length === 0) return
+        
+        const pos = computedSearchResults[index]
+        const textarea = textareaRef.current
+        
+        // Calculate line number for the position
+        const textBefore = content.substring(0, pos)
+        const lineNumber = textBefore.split('\n').length - 1
+        
+        // Calculate approximate scroll position
+        const lineHeight = 22.4 // matches our line height
+        const scrollTop = lineNumber * lineHeight - textarea.clientHeight / 3
+        
+        textarea.scrollTop = Math.max(0, scrollTop)
+        
+        // Focus and select the found text
+        textarea.focus()
+        textarea.setSelectionRange(pos, pos + searchQuery.length)
+    }, [computedSearchResults, content, searchQuery])
 
-    const goToPrevResult = () => {
+    const goToNextResult = useCallback(() => {
         if (computedSearchResults.length > 0) {
-            setCurrentSearchIndex((prev) => (prev - 1 + computedSearchResults.length) % computedSearchResults.length)
+            const nextIndex = (currentSearchIndex + 1) % computedSearchResults.length
+            setCurrentSearchIndex(nextIndex)
+            scrollToSearchResult(nextIndex)
         }
-    }
+    }, [computedSearchResults.length, currentSearchIndex, scrollToSearchResult])
+
+    const goToPrevResult = useCallback(() => {
+        if (computedSearchResults.length > 0) {
+            const prevIndex = (currentSearchIndex - 1 + computedSearchResults.length) % computedSearchResults.length
+            setCurrentSearchIndex(prevIndex)
+            scrollToSearchResult(prevIndex)
+        }
+    }, [computedSearchResults.length, currentSearchIndex, scrollToSearchResult])
+
+    // Scroll to first result when search query changes
+    useEffect(() => {
+        if (computedSearchResults.length > 0 && searchQuery) {
+            setCurrentSearchIndex(0)
+            scrollToSearchResult(0)
+        }
+    }, [searchQuery, computedSearchResults.length, scrollToSearchResult])
 
     const handleCopyContent = async () => {
         await navigator.clipboard.writeText(content)
@@ -278,6 +321,45 @@ export function NoteEditor({ note }: NoteEditorProps) {
 
                     <div className="w-px h-5 bg-[#373737] mx-1" />
 
+                    {/* View Mode Toggle */}
+                    <div className="flex items-center bg-[#252525] rounded-lg p-0.5">
+                        <button
+                            onClick={() => setViewMode('edit')}
+                            className={`p-1.5 rounded transition-all ${
+                                viewMode === 'edit'
+                                    ? 'bg-[#373737] text-blue-400'
+                                    : 'text-[#6b6b6b] hover:text-[#e3e3e3]'
+                            }`}
+                            title="Edit mode"
+                        >
+                            <Edit3 size={14} />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('split')}
+                            className={`p-1.5 rounded transition-all ${
+                                viewMode === 'split'
+                                    ? 'bg-[#373737] text-blue-400'
+                                    : 'text-[#6b6b6b] hover:text-[#e3e3e3]'
+                            }`}
+                            title="Split view"
+                        >
+                            <FileText size={14} />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('preview')}
+                            className={`p-1.5 rounded transition-all ${
+                                viewMode === 'preview'
+                                    ? 'bg-[#373737] text-blue-400'
+                                    : 'text-[#6b6b6b] hover:text-[#e3e3e3]'
+                            }`}
+                            title="Preview mode"
+                        >
+                            <Eye size={14} />
+                        </button>
+                    </div>
+
+                    <div className="w-px h-5 bg-[#373737] mx-1" />
+
                     <button
                         onClick={() => setShowSearch(!showSearch)}
                         className={`p-2 rounded-lg transition-all ${
@@ -332,12 +414,29 @@ export function NoteEditor({ note }: NoteEditorProps) {
                             autoFocus
                         />
                         {computedSearchResults.length > 0 && (
-                            <span className="text-xs text-[#6b6b6b]">
+                            <span className="text-xs text-[#9b9b9b] bg-[#373737] px-2 py-0.5 rounded">
                                 {currentSearchIndex + 1} / {computedSearchResults.length}
                             </span>
                         )}
-                        <button onClick={goToPrevResult} className="p-1 text-[#6b6b6b] hover:text-[#e3e3e3]">↑</button>
-                        <button onClick={goToNextResult} className="p-1 text-[#6b6b6b] hover:text-[#e3e3e3]">↓</button>
+                        {searchQuery && computedSearchResults.length === 0 && (
+                            <span className="text-xs text-red-400">No results</span>
+                        )}
+                        <button 
+                            onClick={goToPrevResult} 
+                            disabled={computedSearchResults.length === 0}
+                            className="p-1.5 text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#373737] rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Previous (↑)"
+                        >
+                            <ChevronUp size={16} />
+                        </button>
+                        <button 
+                            onClick={goToNextResult} 
+                            disabled={computedSearchResults.length === 0}
+                            className="p-1.5 text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#373737] rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                            title="Next (↓)"
+                        >
+                            <ChevronDown size={16} />
+                        </button>
                     </div>
                     
                     <div className="flex items-center gap-2 flex-1">
@@ -374,42 +473,157 @@ export function NoteEditor({ note }: NoteEditorProps) {
 
             {/* Editor Area */}
             <div className="flex-1 flex overflow-hidden">
-                {/* Line Numbers */}
-                <div 
-                    ref={lineNumbersRef}
-                    className="w-12 bg-[#1a1a1a] border-r border-[#373737] overflow-hidden select-none flex-shrink-0"
-                    style={{ 
-                        fontFamily: note.isMonospace ? 'JetBrains Mono, Consolas, monospace' : 'inherit',
-                        fontSize: '14px',
-                        lineHeight: '1.6',
-                    }}
-                >
-                    <div className="py-3 px-2 text-right text-[#4a4a4a]">
-                        {lines.map((_, i) => (
-                            <div key={i} className="h-[22.4px]">{i + 1}</div>
-                        ))}
-                    </div>
-                </div>
+                {/* Editor Panel */}
+                {(viewMode === 'edit' || viewMode === 'split') && (
+                    <div className={`flex ${viewMode === 'split' ? 'w-1/2 border-r border-[#373737]' : 'flex-1'}`}>
+                        {/* Line Numbers */}
+                        <div 
+                            ref={lineNumbersRef}
+                            className="w-12 bg-[#1a1a1a] border-r border-[#373737] overflow-hidden select-none flex-shrink-0"
+                            style={{ 
+                                fontFamily: note.isMonospace ? 'JetBrains Mono, Consolas, monospace' : 'inherit',
+                                fontSize: '14px',
+                                lineHeight: '1.6',
+                            }}
+                        >
+                            <div className="py-3 px-2 text-right text-[#4a4a4a]">
+                                {lines.map((_, i) => (
+                                    <div key={i} className="h-[22.4px]">{i + 1}</div>
+                                ))}
+                            </div>
+                        </div>
 
-                {/* Textarea */}
-                <textarea
-                    ref={textareaRef}
-                    value={content}
-                    onChange={handleChange}
-                    onScroll={handleScroll}
-                    onKeyDown={handleKeyDown}
-                    className="flex-1 bg-[#191919] text-[#e3e3e3] p-3 resize-none outline-none"
-                    style={{
-                        fontFamily: note.isMonospace ? 'JetBrains Mono, Consolas, monospace' : 'Inter, system-ui, sans-serif',
-                        fontSize: '14px',
-                        lineHeight: '1.6',
-                        whiteSpace: note.wordWrap ? 'pre-wrap' : 'pre',
-                        overflowWrap: note.wordWrap ? 'break-word' : 'normal',
-                        tabSize: 4,
-                    }}
-                    placeholder="Start writing..."
-                    spellCheck={!note.isMonospace}
-                />
+                        {/* Textarea */}
+                        <textarea
+                            ref={textareaRef}
+                            value={content}
+                            onChange={handleChange}
+                            onScroll={handleScroll}
+                            onKeyDown={handleKeyDown}
+                            className="flex-1 bg-[#191919] text-[#e3e3e3] p-3 resize-none outline-none"
+                            style={{
+                                fontFamily: note.isMonospace ? 'JetBrains Mono, Consolas, monospace' : 'Inter, system-ui, sans-serif',
+                                fontSize: '14px',
+                                lineHeight: '1.6',
+                                whiteSpace: note.wordWrap ? 'pre-wrap' : 'pre',
+                                overflowWrap: note.wordWrap ? 'break-word' : 'normal',
+                                tabSize: 4,
+                            }}
+                            placeholder="Start writing... (Supports Markdown)"
+                            spellCheck={!note.isMonospace}
+                        />
+                    </div>
+                )}
+
+                {/* Preview Panel */}
+                {(viewMode === 'preview' || viewMode === 'split') && (
+                    <div 
+                        ref={previewRef}
+                        className={`${viewMode === 'split' ? 'w-1/2' : 'flex-1'} bg-[#191919] overflow-y-auto custom-scrollbar`}
+                    >
+                        <div className="p-4 prose prose-invert prose-sm max-w-none markdown-preview">
+                            <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                    // Syntax highlighted code blocks
+                                    code({ className, children, ...props }) {
+                                        const match = /language-(\w+)/.exec(className || '')
+                                        const isInline = !match && !className
+                                        return !isInline && match ? (
+                                            <SyntaxHighlighter
+                                                style={oneDark}
+                                                language={match[1]}
+                                                PreTag="div"
+                                                customStyle={{
+                                                    margin: 0,
+                                                    borderRadius: '8px',
+                                                    fontSize: '13px',
+                                                }}
+                                            >
+                                                {String(children).replace(/\n$/, '')}
+                                            </SyntaxHighlighter>
+                                        ) : (
+                                            <code className="bg-[#2a2a2a] px-1.5 py-0.5 rounded text-blue-400 text-sm" {...props}>
+                                                {children}
+                                            </code>
+                                        )
+                                    },
+                                    // Interactive checklists
+                                    li({ children, ...props }) {
+                                        const text = String(children)
+                                        const isChecked = text.startsWith('☑') || text.includes('[x]') || text.includes('[X]')
+                                        const isUnchecked = text.startsWith('☐') || text.includes('[ ]')
+                                        
+                                        if (isChecked || isUnchecked) {
+                                            return (
+                                                <li className="list-none flex items-start gap-2" {...props}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={isChecked}
+                                                        onChange={() => {
+                                                            // Toggle checkbox in content
+                                                            const newContent = isChecked 
+                                                                ? content.replace(/\[x\]/gi, '[ ]').replace('☑', '☐')
+                                                                : content.replace('[ ]', '[x]').replace('☐', '☑')
+                                                            setContent(newContent)
+                                                            updateNoteContent(note.id, newContent)
+                                                        }}
+                                                        className="mt-1 w-4 h-4 rounded border-[#373737] bg-[#2a2a2a] checked:bg-blue-500 cursor-pointer"
+                                                    />
+                                                    <span className={isChecked ? 'line-through text-[#6b6b6b]' : ''}>
+                                                        {text.replace(/^\[[ xX]\]\s*/, '').replace(/^[☑☐]\s*/, '')}
+                                                    </span>
+                                                </li>
+                                            )
+                                        }
+                                        return <li {...props}>{children}</li>
+                                    },
+                                    // Style headings
+                                    h1: ({ children }) => <h1 className="text-2xl font-bold text-white border-b border-[#373737] pb-2 mb-4">{children}</h1>,
+                                    h2: ({ children }) => <h2 className="text-xl font-semibold text-white border-b border-[#373737] pb-2 mb-3">{children}</h2>,
+                                    h3: ({ children }) => <h3 className="text-lg font-semibold text-[#e3e3e3] mb-2">{children}</h3>,
+                                    // Style links
+                                    a: ({ href, children }) => (
+                                        <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">
+                                            {children}
+                                        </a>
+                                    ),
+                                    // Style blockquotes
+                                    blockquote: ({ children }) => (
+                                        <blockquote className="border-l-4 border-blue-500 pl-4 italic text-[#9b9b9b] my-4">
+                                            {children}
+                                        </blockquote>
+                                    ),
+                                    // Style tables
+                                    table: ({ children }) => (
+                                        <table className="border-collapse w-full my-4">
+                                            {children}
+                                        </table>
+                                    ),
+                                    th: ({ children }) => (
+                                        <th className="border border-[#373737] bg-[#252525] px-3 py-2 text-left text-[#e3e3e3]">
+                                            {children}
+                                        </th>
+                                    ),
+                                    td: ({ children }) => (
+                                        <td className="border border-[#373737] px-3 py-2 text-[#9b9b9b]">
+                                            {children}
+                                        </td>
+                                    ),
+                                    // Style horizontal rule
+                                    hr: () => <hr className="border-[#373737] my-6" />,
+                                    // Style paragraphs
+                                    p: ({ children }) => <p className="text-[#e3e3e3] leading-relaxed mb-4">{children}</p>,
+                                    // Style lists
+                                    ul: ({ children }) => <ul className="list-disc list-inside text-[#e3e3e3] mb-4 space-y-1">{children}</ul>,
+                                    ol: ({ children }) => <ol className="list-decimal list-inside text-[#e3e3e3] mb-4 space-y-1">{children}</ol>,
+                                }}
+                            >
+                                {content || '*Start writing to see preview...*'}
+                            </ReactMarkdown>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Status Bar */}
