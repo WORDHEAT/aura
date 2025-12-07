@@ -713,6 +713,12 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
 
     // Auto-push changes to cloud - IMMEDIATE (300ms debounce just for rapid typing)
     useEffect(() => {
+        // ALWAYS reset these flags first to avoid stale state
+        const wasRemoteUpdate = isRemoteUpdateRef.current
+        const wasInitialLoad = isInitialLoadRef.current
+        isRemoteUpdateRef.current = false
+        isInitialLoadRef.current = false
+        
         // Skip if not authenticated
         if (!isAuthenticated || !user) {
             prevWorkspacesRef.current = JSON.stringify(workspaces)
@@ -720,15 +726,13 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }
         
         // Skip initial load
-        if (isInitialLoadRef.current) {
-            isInitialLoadRef.current = false
+        if (wasInitialLoad) {
             prevWorkspacesRef.current = JSON.stringify(workspaces)
             return
         }
         
         // Skip if this is a remote update (from real-time listener or sync)
-        if (isRemoteUpdateRef.current) {
-            isRemoteUpdateRef.current = false
+        if (wasRemoteUpdate) {
             prevWorkspacesRef.current = JSON.stringify(workspaces)
             return
         }
@@ -742,6 +746,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         
         // Mark pending and push FAST (300ms debounce just to batch rapid keystrokes)
         hasPendingChangesRef.current = true
+        console.log('⚡ Local change detected - pushing in 300ms')
 
         if (syncTimeoutRef.current) {
             clearTimeout(syncTimeoutRef.current)
