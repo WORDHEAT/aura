@@ -79,9 +79,49 @@ const toCloudWorkspace = (ws: Workspace, ownerId: string, position: number): Omi
 
 export class SyncService {
     private userId: string | null = null
+    private lastKnownTimestamps: Map<string, string> = new Map()
 
     setUserId(userId: string | null) {
         this.userId = userId
+        this.lastKnownTimestamps.clear()
+    }
+
+    // Track known timestamps for conflict detection
+    private trackTimestamp(entityId: string, timestamp: string) {
+        this.lastKnownTimestamps.set(entityId, timestamp)
+    }
+
+    // Check if cloud version is newer than what we last knew
+    async checkTableConflict(tableId: string): Promise<{ hasConflict: boolean; cloudUpdatedAt?: string }> {
+        const { data } = await supabase
+            .from('tables')
+            .select('updated_at')
+            .eq('id', tableId)
+            .single()
+        
+        if (!data) return { hasConflict: false }
+        
+        const lastKnown = this.lastKnownTimestamps.get(tableId)
+        if (lastKnown && new Date(data.updated_at) > new Date(lastKnown)) {
+            return { hasConflict: true, cloudUpdatedAt: data.updated_at }
+        }
+        return { hasConflict: false }
+    }
+
+    async checkNoteConflict(noteId: string): Promise<{ hasConflict: boolean; cloudUpdatedAt?: string }> {
+        const { data } = await supabase
+            .from('notes')
+            .select('updated_at')
+            .eq('id', noteId)
+            .single()
+        
+        if (!data) return { hasConflict: false }
+        
+        const lastKnown = this.lastKnownTimestamps.get(noteId)
+        if (lastKnown && new Date(data.updated_at) > new Date(lastKnown)) {
+            return { hasConflict: true, cloudUpdatedAt: data.updated_at }
+        }
+        return { hasConflict: false }
     }
 
     // Fetch all workspaces for current user
@@ -157,15 +197,19 @@ export class SyncService {
             return []
         }
 
-        return (data || []).map(t => ({
-            id: t.id,
-            name: t.name,
-            columns: t.columns as TableItem['columns'],
-            rows: t.rows as TableItem['rows'],
-            appearance: t.appearance as TableItem['appearance'],
-            createdAt: t.created_at,
-            updatedAt: t.updated_at
-        }))
+        return (data || []).map(t => {
+            // Track timestamp for conflict detection
+            this.trackTimestamp(t.id, t.updated_at)
+            return {
+                id: t.id,
+                name: t.name,
+                columns: t.columns as TableItem['columns'],
+                rows: t.rows as TableItem['rows'],
+                appearance: t.appearance as TableItem['appearance'],
+                createdAt: t.created_at,
+                updatedAt: t.updated_at
+            }
+        })
     }
 
     // Fetch notes for a workspace
@@ -181,15 +225,19 @@ export class SyncService {
             return []
         }
 
-        return (data || []).map(n => ({
-            id: n.id,
-            name: n.name,
-            content: n.content,
-            isMonospace: n.is_monospace ?? false,
-            wordWrap: n.word_wrap ?? true,
-            createdAt: n.created_at,
-            updatedAt: n.updated_at
-        }))
+        return (data || []).map(n => {
+            // Track timestamp for conflict detection
+            this.trackTimestamp(n.id, n.updated_at)
+            return {
+                id: n.id,
+                name: n.name,
+                content: n.content,
+                isMonospace: n.is_monospace ?? false,
+                wordWrap: n.word_wrap ?? true,
+                createdAt: n.created_at,
+                updatedAt: n.updated_at
+            }
+        })
     }
 
     // Create a new workspace

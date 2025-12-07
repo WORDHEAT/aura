@@ -1,9 +1,9 @@
-import { Cloud, CloudOff, Loader2, RefreshCw, AlertCircle } from 'lucide-react'
+import { Cloud, CloudOff, Loader2, RefreshCw, AlertCircle, CloudUpload } from 'lucide-react'
 import { useTableContext } from '../context/TableContext'
 import { useAuth } from '../context/AuthContext'
 
 export function SyncIndicator() {
-    const { isSyncing, syncError, syncWorkspaces } = useTableContext()
+    const { isSyncing, syncError, pendingOpsCount, syncWorkspaces } = useTableContext()
     const { isAuthenticated } = useAuth()
 
     if (!isAuthenticated) {
@@ -36,6 +36,20 @@ export function SyncIndicator() {
             >
                 <AlertCircle size={14} />
                 <span className="hidden sm:inline">Sync Error</span>
+            </button>
+        )
+    }
+
+    // Show pending operations count
+    if (pendingOpsCount > 0) {
+        return (
+            <button
+                onClick={() => syncWorkspaces()}
+                className="flex items-center gap-1.5 px-2 py-1 text-xs text-yellow-400 hover:bg-yellow-500/10 rounded-md transition-colors"
+                title={`${pendingOpsCount} pending deletion(s). Click to sync.`}
+            >
+                <CloudUpload size={14} />
+                <span className="hidden sm:inline">Pending ({pendingOpsCount})</span>
             </button>
         )
     }
