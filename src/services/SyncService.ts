@@ -100,31 +100,36 @@ export class SyncService {
             throw ownedError
         }
 
-        // Fetch workspaces user is a member of
-        const { data: memberWorkspaces, error: memberError } = await supabase
+        // Fetch workspace IDs user is a member of (separate query to avoid JOIN RLS issues)
+        const { data: memberships, error: memberError } = await supabase
             .from('workspace_members')
-            .select(`
-                workspace_id,
-                role,
-                workspaces (*)
-            `)
+            .select('workspace_id, role')
             .eq('user_id', this.userId)
 
-        console.log('🔍 Member workspaces query result:', { memberWorkspaces, memberError })
+        console.log('🔍 Memberships found:', memberships)
 
         if (memberError) {
-            console.error('Error fetching member workspaces:', memberError)
+            console.error('Error fetching memberships:', memberError)
         }
 
-        // Combine owned and member workspaces
-        const memberWsList = (memberWorkspaces || [])
-            .map(m => {
-                console.log('🔍 Processing member workspace:', m)
-                return m.workspaces as unknown as CloudWorkspace
-            })
-            .filter(Boolean)
-        
-        console.log('🔍 Filtered member workspaces:', memberWsList)
+        // Fetch those workspaces directly
+        let memberWsList: CloudWorkspace[] = []
+        if (memberships && memberships.length > 0) {
+            const workspaceIds = memberships.map(m => m.workspace_id)
+            console.log('🔍 Fetching workspaces with IDs:', workspaceIds)
+            
+            const { data: memberWsData, error: wsError } = await supabase
+                .from('workspaces')
+                .select('*')
+                .in('id', workspaceIds)
+            
+            console.log('🔍 Member workspaces fetched:', { memberWsData, wsError })
+            
+            if (wsError) {
+                console.error('Error fetching member workspaces:', wsError)
+            }
+            memberWsList = (memberWsData || []) as CloudWorkspace[]
+        }
 
         const allCloudWorkspaces = [
             ...(ownedWorkspaces || []),
