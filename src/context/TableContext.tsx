@@ -393,14 +393,9 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         let hasErrors = false
         
         try {
-            // Helper to update or create with conflict detection
+            // Helper to update or create
             const upsertTable = async (workspaceId: string, table: TableItem, position: number) => {
                 try {
-                    // Check for conflicts first
-                    const { hasConflict } = await syncService.checkTableConflict(table.id)
-                    if (hasConflict) {
-                        console.warn('⚠️ Conflict detected for table:', table.name, '- cloud version is newer. Overwriting.')
-                    }
                     await syncService.updateTable(table, position)
                 } catch {
                     try {
@@ -414,11 +409,6 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             
             const upsertNote = async (workspaceId: string, note: NoteItem, position: number) => {
                 try {
-                    // Check for conflicts first
-                    const { hasConflict } = await syncService.checkNoteConflict(note.id)
-                    if (hasConflict) {
-                        console.warn('⚠️ Conflict detected for note:', note.name, '- cloud version is newer. Overwriting.')
-                    }
                     await syncService.updateNote(note, position)
                 } catch {
                     try {
