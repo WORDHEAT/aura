@@ -445,15 +445,25 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
 
         console.log('📡 Setting up event-based real-time sync for user:', user.id)
         
-        // Check if this is our own echo (within 1 second of our push)
-        const isOwnEcho = () => Date.now() - lastSyncTimeRef.current < 1000
+        // Should we ignore this event?
+        // 1. If we have pending local changes (haven't pushed yet)
+        // 2. If this is our own echo (within 3 seconds of our push)
+        const shouldIgnore = (source: string) => {
+            if (hasPendingChangesRef.current) {
+                console.log(`📡 Ignoring ${source} - have pending local changes`)
+                return true
+            }
+            const timeSincePush = Date.now() - lastSyncTimeRef.current
+            if (timeSincePush < 3000) {
+                console.log(`📡 Ignoring ${source} - own echo (${timeSincePush}ms ago)`)
+                return true
+            }
+            return false
+        }
 
         // Handle NOTE changes - most common operation
         const handleNoteChange = (payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }) => {
-            if (isOwnEcho()) {
-                console.log('📡 Ignoring own note echo')
-                return
-            }
+            if (shouldIgnore('note change')) return
             
             const { eventType } = payload
             console.log(`📡 Note ${eventType} from another device`)
@@ -508,10 +518,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
 
         // Handle TABLE changes
         const handleTableChange = (payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }) => {
-            if (isOwnEcho()) {
-                console.log('📡 Ignoring own table echo')
-                return
-            }
+            if (shouldIgnore('table change')) return
             
             const { eventType } = payload
             console.log(`📡 Table ${eventType} from another device`)
@@ -564,10 +571,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
 
         // Handle WORKSPACE changes
         const handleWorkspaceChange = (payload: { eventType: string; new: Record<string, unknown> | null; old: Record<string, unknown> | null }) => {
-            if (isOwnEcho()) {
-                console.log('📡 Ignoring own workspace echo')
-                return
-            }
+            if (shouldIgnore('workspace change')) return
             
             const { eventType } = payload
             console.log(`📡 Workspace ${eventType} from another device`)
