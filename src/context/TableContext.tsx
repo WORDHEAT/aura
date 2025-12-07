@@ -315,19 +315,27 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         
         const pendingSync = localStorage.getItem('aura-pending-sync')
         if (pendingSync) {
-            // Has pending changes from previous session - push them first, then sync
             try {
-                const { workspaces: pendingWorkspaces } = JSON.parse(pendingSync)
-                console.log('📤 Found pending sync from previous session, pushing first...')
-                pushToCloud(pendingWorkspaces).then(() => {
+                const { workspaces: pendingWorkspaces, userId: pendingUserId } = JSON.parse(pendingSync)
+                
+                // Only push if pending sync belongs to current user
+                if (pendingUserId === user.id) {
+                    console.log('📤 Found pending sync from previous session, pushing first...')
+                    pushToCloud(pendingWorkspaces).then(() => {
+                        localStorage.removeItem('aura-pending-sync')
+                        console.log('✅ Pending sync completed')
+                        initialSyncDoneRef.current = true
+                    }).catch(err => {
+                        console.error('Failed to push pending sync:', err)
+                        localStorage.removeItem('aura-pending-sync')
+                        syncWorkspaces()
+                    })
+                } else {
+                    // Pending sync belongs to different user - discard it
+                    console.log('🗑️ Discarding pending sync from different user')
                     localStorage.removeItem('aura-pending-sync')
-                    console.log('✅ Pending sync completed')
-                    initialSyncDoneRef.current = true
-                }).catch(err => {
-                    console.error('Failed to push pending sync:', err)
-                    localStorage.removeItem('aura-pending-sync')
-                    syncWorkspaces() // Only sync if push failed
-                })
+                    syncWorkspaces()
+                }
             } catch (e) {
                 console.error('Failed to parse pending sync:', e)
                 localStorage.removeItem('aura-pending-sync')
