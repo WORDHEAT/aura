@@ -12,7 +12,7 @@ import { LayoutList, LayoutTemplate, Settings, Undo2, Redo2, Plus, FolderPlus, F
 import { useSettings } from './context/SettingsContext'
 import { UserMenu } from './components/Auth'
 import { LandingPage } from './components/LandingPage'
-import { SectionErrorBoundary } from './components/ErrorBoundary'
+import { SectionErrorBoundary, ModalErrorBoundary } from './components/ErrorBoundary'
 
 // Lazy load modals for better initial bundle size
 const SettingsModal = lazy(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })))
@@ -544,52 +544,64 @@ function App() {
         </div>
       </div>
 
-      {/* Lazy-loaded modals wrapped in Suspense */}
+      {/* Lazy-loaded modals wrapped in Suspense and Error Boundary */}
       <Suspense fallback={null}>
         {isSettingsOpen && (
-          <SettingsModal 
-            isOpen={isSettingsOpen} 
-            onClose={() => setIsSettingsOpen(false)} 
-          />
+          <ModalErrorBoundary onClose={() => setIsSettingsOpen(false)}>
+            <SettingsModal 
+              isOpen={isSettingsOpen} 
+              onClose={() => setIsSettingsOpen(false)} 
+            />
+          </ModalErrorBoundary>
         )}
 
         {isAuthModalOpen && (
-          <AuthModal
-            isOpen={isAuthModalOpen}
-            onClose={() => setIsAuthModalOpen(false)}
-            onSignIn={signIn}
-            onSignUp={signUp}
-            onGoogleSignIn={signInWithGoogle}
-            onGithubSignIn={signInWithGithub}
-          />
+          <ModalErrorBoundary onClose={() => setIsAuthModalOpen(false)}>
+            <AuthModal
+              isOpen={isAuthModalOpen}
+              onClose={() => setIsAuthModalOpen(false)}
+              onSignIn={signIn}
+              onSignUp={signUp}
+              onGoogleSignIn={signInWithGoogle}
+              onGithubSignIn={signInWithGithub}
+            />
+          </ModalErrorBoundary>
         )}
 
         {isCalendarOpen && (
-          <CalendarView
-            isOpen={isCalendarOpen}
-            onClose={() => setIsCalendarOpen(false)}
-          />
+          <ModalErrorBoundary onClose={() => setIsCalendarOpen(false)}>
+            <CalendarView
+              isOpen={isCalendarOpen}
+              onClose={() => setIsCalendarOpen(false)}
+            />
+          </ModalErrorBoundary>
         )}
 
         {isProfileOpen && (
-          <ProfileModal
-            isOpen={isProfileOpen}
-            onClose={() => setIsProfileOpen(false)}
-          />
+          <ModalErrorBoundary onClose={() => setIsProfileOpen(false)}>
+            <ProfileModal
+              isOpen={isProfileOpen}
+              onClose={() => setIsProfileOpen(false)}
+            />
+          </ModalErrorBoundary>
         )}
 
         {isTrashOpen && (
-          <TrashModal
-            isOpen={isTrashOpen}
-            onClose={() => setIsTrashOpen(false)}
-          />
+          <ModalErrorBoundary onClose={() => setIsTrashOpen(false)}>
+            <TrashModal
+              isOpen={isTrashOpen}
+              onClose={() => setIsTrashOpen(false)}
+            />
+          </ModalErrorBoundary>
         )}
 
         {isSearchOpen && (
-          <SearchCommand
-            isOpen={isSearchOpen}
-            onClose={() => setIsSearchOpen(false)}
-          />
+          <ModalErrorBoundary onClose={() => setIsSearchOpen(false)}>
+            <SearchCommand
+              isOpen={isSearchOpen}
+              onClose={() => setIsSearchOpen(false)}
+            />
+          </ModalErrorBoundary>
         )}
       </Suspense>
     </div>

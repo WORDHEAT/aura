@@ -131,6 +131,67 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     }
 }
 
+// Lightweight error boundary for modals (auto-closes on error)
+interface ModalErrorBoundaryProps {
+    children: ReactNode
+    onClose?: () => void
+}
+
+interface ModalErrorBoundaryState {
+    hasError: boolean
+}
+
+export class ModalErrorBoundary extends Component<ModalErrorBoundaryProps, ModalErrorBoundaryState> {
+    constructor(props: ModalErrorBoundaryProps) {
+        super(props)
+        this.state = { hasError: false }
+    }
+
+    static getDerivedStateFromError(): Partial<ModalErrorBoundaryState> {
+        return { hasError: true }
+    }
+
+    componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+        console.error('🚨 Error loading modal:', error)
+        console.error('Component stack:', errorInfo.componentStack)
+    }
+
+    handleClose = (): void => {
+        this.setState({ hasError: false })
+        this.props.onClose?.()
+    }
+
+    render(): ReactNode {
+        if (this.state.hasError) {
+            return (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="bg-[#202020] border border-[#373737] rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-red-500/10 rounded-lg">
+                                <AlertTriangle className="text-red-400" size={20} />
+                            </div>
+                            <h3 className="text-lg font-medium text-[#e3e3e3]">
+                                Failed to load
+                            </h3>
+                        </div>
+                        <p className="text-sm text-[#9b9b9b] mb-4">
+                            This feature couldn't be loaded. Please try again.
+                        </p>
+                        <button
+                            onClick={this.handleClose}
+                            className="w-full bg-[#2a2a2a] hover:bg-[#333] text-[#e3e3e3] px-4 py-2 rounded-lg font-medium transition-colors border border-[#373737]"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )
+        }
+
+        return this.props.children
+    }
+}
+
 // Lightweight error boundary for specific sections
 interface SectionErrorBoundaryProps {
     children: ReactNode
