@@ -145,7 +145,8 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
         addTableRowChild, 
         addTableRow,
         toggleTableRow,
-        getTableById
+        getTableById,
+        currentWorkspace
     } = useTableContext()
     
     // Merge per-table appearance with global settings (per-table takes priority)
@@ -895,7 +896,12 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
                 }}
                 currentValue={reminderModal ? getVisibleRows(data.rows).find(r => r.row.id === reminderModal.rowId)?.row.cells[reminderModal.colId] : undefined}
                 tableName={getTableById(tableId)?.name}
+                tableId={tableId}
+                rowId={reminderModal?.rowId}
+                colId={reminderModal?.colId}
                 userId={user?.id}
+                workspaceId={currentWorkspace?.id}
+                workspaceVisibility={currentWorkspace?.visibility}
             />
         </div>
     )
