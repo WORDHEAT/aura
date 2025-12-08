@@ -23,6 +23,7 @@ interface SortableRowProps {
     onAddSubRow: (id: string) => void
     onActionMenuClick: (e: React.MouseEvent, id: string) => void
     onDeleteRow: (id: string) => void
+    onDuplicateRow: (id: string) => void
     onUpdateRowColor: (id: string, color: string) => void
     onUpdateCellColor: (rowId: string, colId: string, color: string) => void
     onCopyCell: (text: string, rowId: string, colId: string) => void
@@ -51,6 +52,7 @@ export const SortableRow = memo(function SortableRow({
     onAddSubRow,
     onActionMenuClick,
     onDeleteRow,
+    onDuplicateRow,
     onUpdateRowColor,
     onUpdateCellColor,
     onCopyCell,
@@ -228,6 +230,16 @@ export const SortableRow = memo(function SortableRow({
                                     >
                                         <CornerDownRight size={14} className="text-blue-400" />
                                         <span className="text-sm">Add Sub-Row</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            onDuplicateRow(row.id)
+                                            setActiveActionMenu(null)
+                                        }}
+                                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#2a2a2a] w-full text-left transition-colors text-[#e3e3e3]"
+                                    >
+                                        <Copy size={14} className="text-green-400" />
+                                        <span className="text-sm">Duplicate Row</span>
                                     </button>
                                     
                                     <div className="h-px bg-[#373737] my-1" />
