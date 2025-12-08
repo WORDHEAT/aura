@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Plus, Bell, AlignJustify, Grid3X3, StretchHorizontal } from 'lucide-react'
 import { ReminderModal } from './ReminderModal'
 import { ColumnHeader } from './ColumnHeader'
-import { format } from 'date-fns'
+import { format, differenceInDays } from 'date-fns'
 import { CheckboxCell } from './cells/CheckboxCell'
 import { NumberCell } from './cells/NumberCell'
 import { URLCell } from './cells/URLCell'
@@ -614,10 +614,18 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
                 const dates = values.map(v => new Date(v).getTime()).filter(n => !isNaN(n))
                 if (dates.length === 0) return null
                 const min = Math.min(...dates)
+                const earliestDate = new Date(min)
+                const today = new Date()
+                today.setHours(0, 0, 0, 0)
+                const daysLeft = differenceInDays(earliestDate, today)
+                const daysText = daysLeft === 0 ? 'Today' : daysLeft === 1 ? '1 day left' : daysLeft > 0 ? `${daysLeft} days left` : `${Math.abs(daysLeft)} days ago`
                 return (
                     <div className="text-xs">
                         <div className="text-[#9b9b9b]">Earliest:</div>
-                        <div className="text-[#e3e3e3] font-medium">{format(new Date(min), settings.dateFormat)}</div>
+                        <div className="text-[#e3e3e3] font-medium">{format(earliestDate, settings.dateFormat)}</div>
+                        <div className={`text-[10px] mt-0.5 ${daysLeft < 0 ? 'text-red-400' : daysLeft === 0 ? 'text-yellow-400' : 'text-green-400'}`}>
+                            {daysText}
+                        </div>
                     </div>
                 )
             }

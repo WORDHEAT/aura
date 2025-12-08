@@ -257,7 +257,7 @@ function App() {
             onClick={() => setIsMobileDrawerOpen(false)}
           />
           {/* Drawer */}
-          <div className="absolute left-0 top-0 w-[300px] h-[100dvh] bg-[#191919] border-r border-[#373737] shadow-2xl animate-in slide-in-from-left duration-300 flex flex-col">
+          <div className="absolute left-0 top-0 w-[85vw] max-w-[400px] h-[100dvh] bg-[#191919] border-r border-[#373737] shadow-2xl animate-in slide-in-from-left duration-300 flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-[#373737] shrink-0">
               <h2 className="font-semibold text-[#e3e3e3]">Workspaces</h2>
               <button
