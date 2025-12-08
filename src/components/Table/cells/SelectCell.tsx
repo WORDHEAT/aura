@@ -47,16 +47,16 @@ export function SelectCell({ value, onChange, options = [], onOptionsChange }: S
     }
 
     return (
-        <div className="relative w-full">
+        <div className="relative w-full overflow-hidden">
             <button
                 ref={buttonRef}
                 onClick={isOpen ? handleClose : handleOpen}
-                className="w-full text-left flex items-center justify-between gap-2 text-sm min-h-[44px] sm:min-h-0 py-2 sm:py-1"
+                className="w-full text-left flex items-center gap-1.5 text-sm min-h-[44px] sm:min-h-0 py-2 sm:py-1"
             >
-                <span className={value ? 'text-[#e3e3e3]' : 'text-[#6b6b6b]'}>
+                <ChevronDown size={14} className="text-[#6b6b6b] flex-shrink-0" />
+                <span className={`truncate ${value ? 'text-[#e3e3e3]' : 'text-[#6b6b6b]'}`}>
                     {value || 'Select...'}
                 </span>
-                <ChevronDown size={14} className="text-[#6b6b6b] flex-shrink-0" />
             </button>
 
             {isOpen && dropdownPosition && (
