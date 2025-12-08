@@ -20,12 +20,28 @@ interface ReminderItem {
     cellValue: string
 }
 
+// Helper to flatten nested rows (defined outside component to avoid dependency issues)
+type RowType = { id: string; cells: Record<string, string>; children?: RowType[] }
+const flattenRows = (rows: RowType[]): RowType[] => {
+    const result: RowType[] = []
+    const traverse = (rowList: RowType[]) => {
+        for (const row of rowList) {
+            result.push(row)
+            if (row.children && row.children.length > 0) {
+                traverse(row.children)
+            }
+        }
+    }
+    traverse(rows)
+    return result
+}
+
 export function CalendarView({ isOpen, onClose }: CalendarViewProps) {
     const { workspaces } = useTableContext()
     const [currentMonth, setCurrentMonth] = useState(new Date())
     const [selectedDate, setSelectedDate] = useState<Date | null>(null)
 
-    // Extract all reminders from all tables
+    // Extract all reminders from all tables (including nested rows)
     const reminders = useMemo(() => {
         const items: ReminderItem[] = []
         
@@ -34,8 +50,11 @@ export function CalendarView({ isOpen, onClose }: CalendarViewProps) {
                 // Find reminder columns
                 const reminderColumns = table.columns.filter(col => col.type === 'reminder')
                 
+                // Flatten rows to include nested children
+                const allRows = flattenRows(table.rows)
+                
                 reminderColumns.forEach(column => {
-                    table.rows.forEach(row => {
+                    allRows.forEach(row => {
                         const cellValue = row.cells[column.id]
                         if (cellValue && typeof cellValue === 'string') {
                             try {
