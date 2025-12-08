@@ -272,14 +272,25 @@ export function NoteEditor({ note }: NoteEditorProps) {
         const x = e.clientX
         const y = e.clientY
         
-        // DON'T prevent default yet - let Electron capture the context-menu event first
-        // We'll prevent it after a tiny delay
+        const electronAPI = getElectronAPI()
         
-        // Wait for Electron's context-menu event to fire and IPC to arrive
+        // In web browser: prevent default immediately
+        // In Electron: let context-menu event fire first, then show our menu
+        if (!electronAPI) {
+            // Web browser - prevent default right away
+            e.preventDefault()
+            setContextMenu({
+                isOpen: true,
+                position: { x, y },
+                selectedText,
+                spellSuggestions: [],
+                misspelledWord: ''
+            })
+            return
+        }
+        
+        // Electron - wait for context-menu event to capture spell info
         await new Promise(resolve => setTimeout(resolve, 150))
-        
-        // Now prevent any native menu from staying visible
-        e.preventDefault?.()
         
         // Get spell context from Electron's context-menu event
         let spellSuggestions: string[] = []
@@ -299,7 +310,7 @@ export function NoteEditor({ note }: NoteEditorProps) {
             spellSuggestions,
             misspelledWord
         })
-    }, [content])
+    }, [content, getElectronAPI])
 
     const handleLongPress = useCallback((e: React.TouchEvent) => {
         const touch = e.touches[0] || e.changedTouches[0]
