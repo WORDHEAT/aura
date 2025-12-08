@@ -272,21 +272,27 @@ export function NoteEditor({ note }: NoteEditorProps) {
         // Always prevent default - we'll show our custom menu
         e.preventDefault()
         
-        // Use spell context from ref (set by Electron IPC)
-        const spellContext = spellContextRef.current
-        const spellSuggestions = spellContext?.suggestions || []
-        const misspelledWord = spellContext?.misspelledWord || ''
+        const x = e.clientX
+        const y = e.clientY
         
-        // Clear the spell context after using it
-        spellContextRef.current = null
-        
-        setContextMenu({
-            isOpen: true,
-            position: { x: e.clientX, y: e.clientY },
-            selectedText,
-            spellSuggestions,
-            misspelledWord
-        })
+        // Wait a bit for Electron's context-menu event to fire and send spell suggestions
+        setTimeout(() => {
+            // Use spell context from ref (set by Electron IPC)
+            const spellContext = spellContextRef.current
+            const spellSuggestions = spellContext?.suggestions || []
+            const misspelledWord = spellContext?.misspelledWord || ''
+            
+            // Clear the spell context after using it
+            spellContextRef.current = null
+            
+            setContextMenu({
+                isOpen: true,
+                position: { x, y },
+                selectedText,
+                spellSuggestions,
+                misspelledWord
+            })
+        }, 50) // Small delay to allow Electron to process spell check
     }, [content])
 
     const handleLongPress = useCallback((e: React.TouchEvent) => {
