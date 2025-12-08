@@ -65,6 +65,7 @@ export interface NoteItem {
     updatedAt: string
     isMonospace?: boolean  // Toggle for code mode
     wordWrap?: boolean
+    spellCheck?: boolean   // Toggle for spell checking (default: true for regular notes)
     // Trash/Archive support
     isArchived?: boolean
     archivedAt?: string
@@ -140,7 +141,7 @@ interface TableContextType {
     deleteNote: (workspaceId: string, noteId: string) => void
     renameNote: (noteId: string, name: string) => void
     updateNoteContent: (noteId: string, content: string) => void
-    updateNoteSettings: (noteId: string, settings: Partial<Pick<NoteItem, 'isMonospace' | 'wordWrap'>>) => void
+    updateNoteSettings: (noteId: string, settings: Partial<Pick<NoteItem, 'isMonospace' | 'wordWrap' | 'spellCheck'>>) => void
     switchNote: (workspaceId: string, noteId: string) => void
     reorderNotesInWorkspace: (workspaceId: string, noteIds: string[]) => void
     moveNoteToWorkspace: (noteId: string, fromWorkspaceId: string, toWorkspaceId: string) => Promise<void>
@@ -1147,7 +1148,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }))
     }
 
-    const updateNoteSettings = (noteId: string, settings: Partial<Pick<NoteItem, 'isMonospace' | 'wordWrap'>>) => {
+    const updateNoteSettings = (noteId: string, settings: Partial<Pick<NoteItem, 'isMonospace' | 'wordWrap' | 'spellCheck'>>) => {
         updateNoteInWorkspaces(noteId, n => ({ ...n, ...settings }))
     }
 
