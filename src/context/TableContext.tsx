@@ -630,6 +630,14 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const historyRef = useRef<Workspace[][]>([])
     const futureRef = useRef<Workspace[][]>([])
     const isUndoRedoRef = useRef(false)
+    const [canUndo, setCanUndo] = useState(false)
+    const [canRedo, setCanRedo] = useState(false)
+
+    // Helper to update undo/redo state directly (no polling)
+    const updateUndoRedoState = useCallback(() => {
+        setCanUndo(historyRef.current.length > 0)
+        setCanRedo(futureRef.current.length > 0)
+    }, [])
 
     // Wrapper to update workspaces with history tracking
     const setWorkspacesWithHistory = useCallback((newWorkspaces: Workspace[] | ((prev: Workspace[]) => Workspace[])) => {
@@ -643,7 +651,9 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             
             return nextWorkspaces
         })
-    }, [])
+        // Update undo/redo state after history changes
+        requestAnimationFrame(updateUndoRedoState)
+    }, [updateUndoRedoState])
 
     const undo = useCallback(() => {
         if (historyRef.current.length === 0) return
@@ -657,8 +667,11 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         })
         
         isUndoRedoRef.current = true
-        setTimeout(() => { isUndoRedoRef.current = false }, 0)
-    }, [])
+        requestAnimationFrame(() => { 
+            isUndoRedoRef.current = false 
+            updateUndoRedoState()
+        })
+    }, [updateUndoRedoState])
 
     const redo = useCallback(() => {
         if (futureRef.current.length === 0) return
@@ -672,37 +685,27 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         })
         
         isUndoRedoRef.current = true
-        setTimeout(() => { isUndoRedoRef.current = false }, 0)
-    }, [])
+        requestAnimationFrame(() => { 
+            isUndoRedoRef.current = false 
+            updateUndoRedoState()
+        })
+    }, [updateUndoRedoState])
 
-    const [canUndo, setCanUndo] = useState(false)
-    const [canRedo, setCanRedo] = useState(false)
-
-    useEffect(() => {
-        const checkHistory = () => {
-            setCanUndo(historyRef.current.length > 0)
-            setCanRedo(futureRef.current.length > 0)
-        }
-        checkHistory()
-        const interval = setInterval(checkHistory, 100)
-        return () => clearInterval(interval)
-    }, [workspaces])
-
-    // Helper to update a table within workspaces
+    // Helper to update a table within workspaces (uses functional update to avoid stale closure)
     const updateTableInWorkspaces = useCallback((tableId: string, updateFn: (table: TableItem) => TableItem) => {
-        setWorkspacesWithHistory(workspaces.map(ws => ({
+        setWorkspacesWithHistory(prev => prev.map(ws => ({
             ...ws,
             tables: ws.tables.map(t => t.id === tableId ? updateFn(t) : t)
         })))
-    }, [workspaces, setWorkspacesWithHistory])
+    }, [setWorkspacesWithHistory])
 
-    // Helper to update a note within workspaces
+    // Helper to update a note within workspaces (uses functional update to avoid stale closure)
     const updateNoteInWorkspaces = useCallback((noteId: string, updateFn: (note: NoteItem) => NoteItem) => {
-        setWorkspacesWithHistory(workspaces.map(ws => ({
+        setWorkspacesWithHistory(prev => prev.map(ws => ({
             ...ws,
             notes: ws.notes.map(n => n.id === noteId ? updateFn(n) : n)
         })))
-    }, [workspaces, setWorkspacesWithHistory])
+    }, [setWorkspacesWithHistory])
 
     // ===== WORKSPACE OPERATIONS =====
     const createWorkspace = (name: string) => {

@@ -517,13 +517,13 @@ export function NoteEditor({ note }: NoteEditorProps) {
             content.substring(0, pos) + 
             replaceQuery + 
             content.substring(pos + searchQuery.length)
-        setContent(newContent)
+        updateContent(newContent)
     }
 
     const handleReplaceAll = () => {
         if (!searchQuery) return
         const newContent = content.split(searchQuery).join(replaceQuery)
-        setContent(newContent)
+        updateContent(newContent)
     }
 
     const scrollToSearchResult = useCallback((index: number) => {
@@ -600,15 +600,15 @@ export function NoteEditor({ note }: NoteEditorProps) {
             const end = e.currentTarget.selectionEnd
             
             const newContent = content.substring(0, start) + '    ' + content.substring(end)
-            setContent(newContent)
+            updateContent(newContent)
             
-            // Move cursor after the tab
-            setTimeout(() => {
+            // Move cursor after the tab using requestAnimationFrame for consistency
+            requestAnimationFrame(() => {
                 if (textareaRef.current) {
                     textareaRef.current.selectionStart = start + 4
                     textareaRef.current.selectionEnd = start + 4
                 }
-            }, 0)
+            })
         }
     }
 
