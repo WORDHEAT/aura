@@ -243,42 +243,63 @@ export function NoteEditor({ note }: NoteEditorProps) {
         return (window as Window & { electronAPI?: {
             getSpellSuggestions: () => Promise<{ misspelledWord: string; suggestions: string[] } | null>
             addToDictionary: (word: string) => Promise<boolean>
+            onSpellCheckContext: (callback: (context: { misspelledWord: string; suggestions: string[] }) => void) => void
+            removeSpellCheckListener: () => void
         }}).electronAPI
     }, [])
+
+    // Store latest spell check context from Electron
+    const spellContextRef = useRef<{ misspelledWord: string; suggestions: string[] } | null>(null)
+
+    // Listen for spell check context from Electron
+    useEffect(() => {
+        const electronAPI = getElectronAPI()
+        if (electronAPI) {
+            electronAPI.onSpellCheckContext((context) => {
+                spellContextRef.current = context
+            })
+            return () => {
+                electronAPI.removeSpellCheckListener()
+            }
+        }
+    }, [getElectronAPI])
 
     // Context menu handlers
     const handleContextMenu = useCallback(async (e: React.MouseEvent) => {
         const textarea = textareaRef.current
         const selectedText = textarea ? content.substring(textarea.selectionStart, textarea.selectionEnd) : ''
         
-        // Always prevent default - we'll show our custom menu
-        e.preventDefault()
+        const x = e.clientX
+        const y = e.clientY
         
-        // Get spell suggestions from Electron if available
+        // DON'T prevent default yet - let Electron capture the context-menu event first
+        // We'll prevent it after a tiny delay
+        
+        // Wait for Electron's context-menu event to fire and IPC to arrive
+        await new Promise(resolve => setTimeout(resolve, 150))
+        
+        // Now prevent any native menu from staying visible
+        e.preventDefault?.()
+        
+        // Get spell context from Electron's context-menu event
         let spellSuggestions: string[] = []
         let misspelledWord = ''
         
-        const electronAPI = getElectronAPI()
-        if (electronAPI) {
-            try {
-                const spellContext = await electronAPI.getSpellSuggestions()
-                if (spellContext) {
-                    spellSuggestions = spellContext.suggestions
-                    misspelledWord = spellContext.misspelledWord
-                }
-            } catch (err) {
-                console.error('Failed to get spell suggestions:', err)
-            }
+        const spellContext = spellContextRef.current
+        if (spellContext) {
+            spellSuggestions = spellContext.suggestions
+            misspelledWord = spellContext.misspelledWord
+            spellContextRef.current = null
         }
         
         setContextMenu({
             isOpen: true,
-            position: { x: e.clientX, y: e.clientY },
+            position: { x, y },
             selectedText,
             spellSuggestions,
             misspelledWord
         })
-    }, [content, getElectronAPI])
+    }, [content])
 
     const handleLongPress = useCallback((e: React.TouchEvent) => {
         const touch = e.touches[0] || e.changedTouches[0]
@@ -325,15 +346,19 @@ export function NoteEditor({ note }: NoteEditorProps) {
         const textarea = textareaRef.current
         if (!textarea) return
         try {
+            // Save scroll position
+            const scrollTop = textarea.scrollTop
             const text = await navigator.clipboard.readText()
             const start = textarea.selectionStart
             const end = textarea.selectionEnd
             const newContent = content.substring(0, start) + text + content.substring(end)
             updateContent(newContent)
-            setTimeout(() => {
+            // Restore cursor and scroll position after React updates
+            requestAnimationFrame(() => {
                 textarea.focus()
                 textarea.setSelectionRange(start + text.length, start + text.length)
-            }, 0)
+                textarea.scrollTop = scrollTop
+            })
         } catch (err) {
             console.error('Failed to paste:', err)
         }
@@ -345,6 +370,9 @@ export function NoteEditor({ note }: NoteEditorProps) {
         
         const textarea = textareaRef.current
         if (!textarea) return
+        
+        // Save scroll position
+        const scrollTop = textarea.scrollTop
         
         // Find the misspelled word in content and replace it
         const cursorPos = textarea.selectionStart
@@ -363,10 +391,12 @@ export function NoteEditor({ note }: NoteEditorProps) {
                 content.substring(absoluteIndex + contextMenu.misspelledWord.length)
             updateContent(newContent)
             
-            setTimeout(() => {
+            // Restore cursor and scroll position after React updates
+            requestAnimationFrame(() => {
                 textarea.focus()
                 textarea.setSelectionRange(absoluteIndex + suggestion.length, absoluteIndex + suggestion.length)
-            }, 0)
+                textarea.scrollTop = scrollTop
+            })
         }
     }, [content, contextMenu.misspelledWord, updateContent])
 

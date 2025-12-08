@@ -82,7 +82,8 @@ function createWindow() {
     win = new BrowserWindow({
         icon: path.join(process.env.VITE_PUBLIC || '', 'icon.ico'),
         webPreferences: {
-            preload: path.join(__dirname, 'preload.js'),
+            preload: path.join(__dirname, 'preload.mjs'),
+            spellcheck: true, // Enable spellcheck in webContents
         },
         width: 1200,
         height: 800,
@@ -100,6 +101,25 @@ function createWindow() {
     } else {
         win.loadFile(path.join(process.env.DIST || '', 'index.html'))
     }
+
+    // Set up spell check context menu listener AFTER content is loaded
+    win.webContents.on('did-finish-load', () => {
+        win?.webContents.on('context-menu', (_event, params) => {
+            // Send spell context to renderer
+            if (params.misspelledWord) {
+                lastSpellCheckContext = {
+                    misspelledWord: params.misspelledWord,
+                    suggestions: params.dictionarySuggestions || []
+                }
+            } else {
+                lastSpellCheckContext = {
+                    misspelledWord: '',
+                    suggestions: []
+                }
+            }
+            win?.webContents.send('spell-check-context', lastSpellCheckContext)
+        })
+    })
 }
 
 app.on('window-all-closed', () => {
@@ -117,7 +137,25 @@ app.on('activate', () => {
 // Store last spell check context for IPC
 let lastSpellCheckContext: { misspelledWord: string; suggestions: string[] } | null = null
 
-// IPC handler for getting spell check suggestions
+// IPC handler for checking a word and getting spell suggestions
+ipcMain.handle('check-spelling', async (_event, word: string) => {
+    if (!word || word.length < 2) return null
+    
+    try {
+        // If we have context from context-menu event, use it
+        if (lastSpellCheckContext && lastSpellCheckContext.misspelledWord.toLowerCase() === word.toLowerCase()) {
+            return lastSpellCheckContext
+        }
+        
+        // Otherwise return null - no suggestions available
+        return null
+    } catch (err) {
+        log.error('Spell check error:', err)
+        return null
+    }
+})
+
+// Legacy handler for compatibility
 ipcMain.handle('get-spell-suggestions', () => {
     return lastSpellCheckContext
 })
@@ -129,26 +167,10 @@ ipcMain.handle('add-to-dictionary', (_event, word: string) => {
 })
 
 app.whenReady().then(() => {
-    createWindow()
-    setupAutoUpdater()
-    
-    // Enable spell checking
+    // Enable spell checking at session level
     session.defaultSession.setSpellCheckerEnabled(true)
     session.defaultSession.setSpellCheckerLanguages(['en-US', 'en-GB'])
     
-    // Listen for context menu events to capture spell check info
-    if (win) {
-        win.webContents.on('context-menu', (_event, params) => {
-            if (params.misspelledWord) {
-                lastSpellCheckContext = {
-                    misspelledWord: params.misspelledWord,
-                    suggestions: params.dictionarySuggestions || []
-                }
-                // Send to renderer
-                win?.webContents.send('spell-check-context', lastSpellCheckContext)
-            } else {
-                lastSpellCheckContext = null
-            }
-        })
-    }
+    createWindow()
+    setupAutoUpdater()
 })
