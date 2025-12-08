@@ -38,19 +38,46 @@ export function ResizeHandle({ width, minWidth = 80, onResize }: ResizeHandlePro
         document.body.style.userSelect = 'none'
     }, [width, minWidth, onResize])
 
+    // Touch support for mobile
+    const handleTouchStart = useCallback((e: React.TouchEvent) => {
+        e.stopPropagation()
+        const touch = e.touches[0]
+        setIsResizing(true)
+        startXRef.current = touch.clientX
+        startWidthRef.current = width
+
+        const handleTouchMove = (e: TouchEvent) => {
+            e.preventDefault() // Prevent scrolling while resizing
+            const touch = e.touches[0]
+            const diff = touch.clientX - startXRef.current
+            const newWidth = Math.max(minWidth, startWidthRef.current + diff)
+            onResize(newWidth)
+        }
+
+        const handleTouchEnd = () => {
+            setIsResizing(false)
+            document.removeEventListener('touchmove', handleTouchMove)
+            document.removeEventListener('touchend', handleTouchEnd)
+        }
+
+        document.addEventListener('touchmove', handleTouchMove, { passive: false })
+        document.addEventListener('touchend', handleTouchEnd)
+    }, [width, minWidth, onResize])
+
     return (
         <div
             onMouseDown={handleMouseDown}
-            className={`absolute right-0 top-0 bottom-0 w-4 translate-x-1/2 cursor-col-resize z-10 flex justify-center group/resize select-none outline-none touch-none ${
-                isResizing ? 'bg-transparent' : ''
+            onTouchStart={handleTouchStart}
+            className={`absolute right-0 top-0 bottom-0 w-6 sm:w-4 translate-x-1/2 cursor-col-resize z-10 flex justify-center group/resize select-none outline-none ${
+                isResizing ? 'bg-blue-500/10' : ''
             }`}
             title="Drag to resize column"
         >
-            {/* The visible line indicator */}
-            <div className={`w-[2px] h-full transition-colors duration-150 ${
+            {/* The visible line indicator - always visible on mobile */}
+            <div className={`w-[3px] sm:w-[2px] h-full transition-colors duration-150 ${
                 isResizing 
                     ? 'bg-blue-500 shadow-[0_0_0_1px_rgba(59,130,246,0.5)]' 
-                    : 'bg-transparent group-hover/resize:bg-blue-500/50'
+                    : 'bg-blue-500/30 sm:bg-transparent sm:group-hover/resize:bg-blue-500/50'
             }`} />
         </div>
     )
