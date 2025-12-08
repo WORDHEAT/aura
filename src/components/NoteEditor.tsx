@@ -31,7 +31,8 @@ import {
     CheckSquare,
     Undo2,
     Redo2,
-    Minus
+    Minus,
+    SpellCheck
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -568,6 +569,18 @@ export function NoteEditor({ note }: NoteEditorProps) {
                         {note.wordWrap ? <WrapText size={16} /> : <AlignLeft size={16} />}
                     </button>
 
+                    <button
+                        onClick={() => updateNoteSettings(note.id, { spellCheck: !(note.spellCheck ?? !note.isMonospace) })}
+                        className={`p-2 rounded-lg transition-all ${
+                            (note.spellCheck ?? !note.isMonospace)
+                                ? 'bg-blue-500/20 text-blue-400' 
+                                : 'text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a]'
+                        }`}
+                        title={(note.spellCheck ?? !note.isMonospace) ? 'Disable spell check' : 'Enable spell check'}
+                    >
+                        <SpellCheck size={16} />
+                    </button>
+
                     <div className="w-px h-5 bg-[#373737] mx-1" />
 
                     {/* View Mode Toggle */}
@@ -919,7 +932,7 @@ export function NoteEditor({ note }: NoteEditorProps) {
                                 tabSize: 4,
                             }}
                             placeholder="Start writing... (Supports Markdown)"
-                            spellCheck={false}
+                            spellCheck={note.spellCheck ?? !note.isMonospace}
                         />
                     </div>
                 )}
@@ -1045,6 +1058,7 @@ export function NoteEditor({ note }: NoteEditorProps) {
                 <div className="flex items-center gap-4">
                     <span>{note.isMonospace ? 'Monospace' : 'Sans-serif'}</span>
                     <span>{note.wordWrap ? 'Wrap' : 'No wrap'}</span>
+                    <span>{(note.spellCheck ?? !note.isMonospace) ? 'Spell ✓' : 'Spell ✗'}</span>
                     <span>
                         Updated: {new Date(note.updatedAt).toLocaleString()}
                     </span>
