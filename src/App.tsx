@@ -1,14 +1,16 @@
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense, useCallback } from 'react'
 import { TableSwitcher } from './components/TableSwitcher'
 import { Table } from './components/Table/Table'
 import { NoteEditor } from './components/NoteEditor'
 import { ExportImport } from './components/ExportImport'
 import { SearchFilter } from './components/SearchFilter'
 import { NotificationService } from './services/NotificationService'
+import { TeamNotificationService } from './services/TeamNotificationService'
+import type { TeamNotification } from './services/TeamNotificationService'
 import { useTableContext } from './context/TableContext'
 import { useAuth } from './context/AuthContext'
 import type { Row } from './components/Table/Table'
-import { LayoutList, LayoutTemplate, Settings, Undo2, Redo2, Plus, FolderPlus, FileText, Table2, Clock, Sparkles, Menu, X, Calendar, Trash2, Search } from 'lucide-react'
+import { LayoutList, LayoutTemplate, Settings, Undo2, Redo2, Plus, FolderPlus, FileText, Table2, Clock, Sparkles, Menu, X, Calendar, Trash2, Search, Bell } from 'lucide-react'
 import { useSettings } from './context/SettingsContext'
 import { UserMenu } from './components/Auth'
 import { LandingPage } from './components/LandingPage'
@@ -39,6 +41,8 @@ function App() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [isTrashOpen, setIsTrashOpen] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [teamNotifications, setTeamNotifications] = useState<TeamNotification[]>([])
+  const [showNotificationPanel, setShowNotificationPanel] = useState(false)
 
   // Handle notification settings and restore
   useEffect(() => {
@@ -49,6 +53,29 @@ function App() {
         NotificationService.cancelAll()
     }
   }, [settings.enableNotifications])
+
+  // Subscribe to team notifications when authenticated
+  const handleTeamNotification = useCallback((notification: TeamNotification) => {
+    setTeamNotifications(prev => [notification, ...prev])
+  }, [])
+
+  useEffect(() => {
+    if (isAuthenticated && settings.enableNotifications) {
+      // Load existing unread notifications
+      TeamNotificationService.getUnreadNotifications().then(setTeamNotifications)
+      // Subscribe to new notifications
+      TeamNotificationService.subscribe(handleTeamNotification)
+      return () => {
+        TeamNotificationService.unsubscribe()
+      }
+    }
+  }, [isAuthenticated, settings.enableNotifications, handleTeamNotification])
+
+  const handleMarkAllRead = async () => {
+    await TeamNotificationService.markAllAsRead()
+    setTeamNotifications([])
+    setShowNotificationPanel(false)
+  }
 
 
   // Keyboard shortcuts for undo/redo
@@ -231,6 +258,64 @@ function App() {
             >
               <Trash2 size={18} />
             </button>
+            {/* Team Notifications Bell */}
+            {isAuthenticated && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowNotificationPanel(!showNotificationPanel)}
+                  className="p-1.5 sm:p-2 rounded-lg text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors relative"
+                  title="Notifications"
+                >
+                  <Bell size={18} />
+                  {teamNotifications.length > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                      {teamNotifications.length > 9 ? '9+' : teamNotifications.length}
+                    </span>
+                  )}
+                </button>
+                {/* Notification Panel */}
+                {showNotificationPanel && (
+                  <>
+                    <div className="fixed inset-0 z-[100]" onClick={() => setShowNotificationPanel(false)} />
+                    <div className="absolute right-0 top-full mt-2 w-80 bg-[#202020] border border-[#373737] rounded-xl shadow-2xl z-[101] overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-[#373737]">
+                        <h3 className="text-sm font-semibold text-[#e3e3e3]">Team Notifications</h3>
+                        {teamNotifications.length > 0 && (
+                          <button
+                            onClick={handleMarkAllRead}
+                            className="text-xs text-blue-400 hover:text-blue-300"
+                          >
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-[300px] overflow-y-auto">
+                        {teamNotifications.length === 0 ? (
+                          <div className="p-4 text-center text-sm text-[#6b6b6b]">
+                            No notifications
+                          </div>
+                        ) : (
+                          teamNotifications.map((notification) => (
+                            <div
+                              key={notification.id}
+                              className="px-4 py-3 border-b border-[#2a2a2a] hover:bg-[#2a2a2a] transition-colors"
+                            >
+                              <p className="text-sm text-[#e3e3e3]">{notification.title}</p>
+                              {notification.message && (
+                                <p className="text-xs text-[#9b9b9b] mt-1">{notification.message}</p>
+                              )}
+                              <p className="text-[10px] text-[#6b6b6b] mt-1">
+                                {new Date(notification.created_at).toLocaleString()}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
             <div className="hidden sm:flex items-center">
               <div className="w-px h-6 bg-[#373737] mx-1" />
               <ExportImport
