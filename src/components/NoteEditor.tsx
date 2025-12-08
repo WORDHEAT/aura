@@ -266,30 +266,21 @@ export function NoteEditor({ note }: NoteEditorProps) {
 
     // Context menu handlers
     const handleContextMenu = useCallback(async (e: React.MouseEvent) => {
+        const electronAPI = getElectronAPI()
+        
+        // In web browser: let native browser context menu handle it (has spell suggestions)
+        if (!electronAPI) {
+            return // Don't prevent default - use browser's native menu
+        }
+        
+        // Electron desktop - use our custom menu with spell suggestions
         const textarea = textareaRef.current
         const selectedText = textarea ? content.substring(textarea.selectionStart, textarea.selectionEnd) : ''
         
         const x = e.clientX
         const y = e.clientY
         
-        const electronAPI = getElectronAPI()
-        
-        // In web browser: prevent default immediately
-        // In Electron: let context-menu event fire first, then show our menu
-        if (!electronAPI) {
-            // Web browser - prevent default right away
-            e.preventDefault()
-            setContextMenu({
-                isOpen: true,
-                position: { x, y },
-                selectedText,
-                spellSuggestions: [],
-                misspelledWord: ''
-            })
-            return
-        }
-        
-        // Electron - wait for context-menu event to capture spell info
+        // Wait for context-menu event to capture spell info
         await new Promise(resolve => setTimeout(resolve, 150))
         
         // Get spell context from Electron's context-menu event
