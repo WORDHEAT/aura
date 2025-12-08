@@ -231,10 +231,19 @@ export function NoteEditor({ note }: NoteEditorProps) {
     }, [content, updateContent])
 
     // Context menu handlers
+    // Only show custom menu when text is selected (for formatting)
+    // Otherwise, let browser handle it (for spell suggestions)
     const handleContextMenu = useCallback((e: React.MouseEvent) => {
-        e.preventDefault()
         const textarea = textareaRef.current
         const selectedText = textarea ? content.substring(textarea.selectionStart, textarea.selectionEnd) : ''
+        
+        // If no text selected, let browser show native menu (spell check suggestions)
+        if (!selectedText) {
+            return // Don't prevent default - browser handles it
+        }
+        
+        // Text selected - show our custom formatting menu
+        e.preventDefault()
         setContextMenu({
             isOpen: true,
             position: { x: e.clientX, y: e.clientY },
