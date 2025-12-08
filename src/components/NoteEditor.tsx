@@ -522,7 +522,9 @@ export function NoteEditor({ note }: NoteEditorProps) {
 
     const handleReplaceAll = () => {
         if (!searchQuery) return
-        const newContent = content.split(searchQuery).join(replaceQuery)
+        // Use case-insensitive replace to match the case-insensitive search
+        const regex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+        const newContent = content.replace(regex, replaceQuery)
         updateContent(newContent)
     }
 
