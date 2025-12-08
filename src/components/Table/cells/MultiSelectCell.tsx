@@ -59,34 +59,31 @@ export function MultiSelectCell({ value, onChange, options = [], onOptionsChange
     }
 
     return (
-        <div className="relative w-full">
+        <div className="relative w-full overflow-hidden">
             <button
                 ref={buttonRef}
                 onClick={isOpen ? handleClose : handleOpen}
-                className="w-full text-left flex items-center flex-wrap gap-1.5 text-sm min-h-[44px] sm:min-h-[36px] py-2 sm:py-1"
+                className="w-full text-left flex items-center gap-1.5 text-sm min-h-[44px] sm:min-h-[36px] py-2 sm:py-1"
             >
+                <ChevronDown size={14} className="text-[#6b6b6b] flex-shrink-0" />
                 {selectedValues.length > 0 ? (
-                    <>
+                    <div className="flex items-center flex-wrap gap-1 flex-1 min-w-0 overflow-hidden">
                         {selectedValues.map((val) => (
                             <span
                                 key={val}
-                                className="inline-flex items-center gap-1 bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded text-xs"
+                                className="inline-flex items-center gap-1 bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded text-xs truncate max-w-[100px]"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     removeValue(val)
                                 }}
                             >
                                 {val}
-                                <X size={12} />
+                                <X size={12} className="flex-shrink-0" />
                             </span>
                         ))}
-                        <ChevronDown size={14} className="text-[#6b6b6b] flex-shrink-0 ml-auto" />
-                    </>
+                    </div>
                 ) : (
-                    <>
-                        <span className="text-[#6b6b6b]">Select...</span>
-                        <ChevronDown size={14} className="text-[#6b6b6b] flex-shrink-0 ml-auto" />
-                    </>
+                    <span className="text-[#6b6b6b]">Select...</span>
                 )}
             </button>
 

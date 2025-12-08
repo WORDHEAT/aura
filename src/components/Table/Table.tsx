@@ -490,13 +490,18 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
                 )
             case 'date':
                 return (
-                    <div className="w-full overflow-hidden">
+                    <div className="w-full overflow-hidden relative">
                         <input
                             type="date"
                             value={value || ''}
                             onChange={(e) => onChange(e.target.value)}
-                            className="w-full bg-transparent outline-none text-[#e3e3e3] text-sm min-h-[44px] sm:min-h-0 py-2 sm:py-0 [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:order-first [&::-webkit-calendar-picker-indicator]:mr-2"
+                            className={`w-full bg-transparent outline-none text-sm min-h-[44px] sm:min-h-0 py-2 sm:py-0 [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:order-first [&::-webkit-calendar-picker-indicator]:mr-2 ${value ? 'text-[#e3e3e3]' : 'text-transparent'}`}
                         />
+                        {!value && (
+                            <span className="absolute left-6 top-1/2 -translate-y-1/2 text-[#6b6b6b] text-sm pointer-events-none">
+                                mm/dd/yyyy
+                            </span>
+                        )}
                     </div>
                 )
             case 'reminder':
