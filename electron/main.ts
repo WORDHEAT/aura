@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, dialog } from 'electron'
+import { app, BrowserWindow, Menu, dialog, ipcMain, session } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { autoUpdater } from 'electron-updater'
@@ -114,7 +114,41 @@ app.on('activate', () => {
     }
 })
 
+// Store last spell check context for IPC
+let lastSpellCheckContext: { misspelledWord: string; suggestions: string[] } | null = null
+
+// IPC handler for getting spell check suggestions
+ipcMain.handle('get-spell-suggestions', () => {
+    return lastSpellCheckContext
+})
+
+// IPC handler to add word to dictionary
+ipcMain.handle('add-to-dictionary', (_event, word: string) => {
+    session.defaultSession.addWordToSpellCheckerDictionary(word)
+    return true
+})
+
 app.whenReady().then(() => {
     createWindow()
     setupAutoUpdater()
+    
+    // Enable spell checking
+    session.defaultSession.setSpellCheckerEnabled(true)
+    session.defaultSession.setSpellCheckerLanguages(['en-US', 'en-GB'])
+    
+    // Listen for context menu events to capture spell check info
+    if (win) {
+        win.webContents.on('context-menu', (_event, params) => {
+            if (params.misspelledWord) {
+                lastSpellCheckContext = {
+                    misspelledWord: params.misspelledWord,
+                    suggestions: params.dictionarySuggestions || []
+                }
+                // Send to renderer
+                win?.webContents.send('spell-check-context', lastSpellCheckContext)
+            } else {
+                lastSpellCheckContext = null
+            }
+        })
+    }
 })

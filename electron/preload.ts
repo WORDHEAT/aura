@@ -1,24 +1,20 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
+
+// Spell check context type
+interface SpellCheckContext {
+    misspelledWord: string
+    suggestions: string[]
+}
 
 // --------- Expose some API to the Renderer process ---------
-contextBridge.exposeInMainWorld('ipcRenderer', {
-    // on(...args: Parameters<typeof ipcRenderer.on>) {
-    //   const [channel, listener] = args
-    //   return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
-    // },
-    // off(...args: Parameters<typeof ipcRenderer.off>) {
-    //   const [channel, ...omit] = args
-    //   return ipcRenderer.off(channel, ...omit)
-    // },
-    // send(...args: Parameters<typeof ipcRenderer.send>) {
-    //   const [channel, ...omit] = args
-    //   return ipcRenderer.send(channel, ...omit)
-    // },
-    // invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
-    //   const [channel, ...omit] = args
-    //   return ipcRenderer.invoke(channel, ...omit)
-    // },
-
-    // You can expose other APTs you need here.
-    // ...
+contextBridge.exposeInMainWorld('electronAPI', {
+    // Spell check APIs
+    getSpellSuggestions: () => ipcRenderer.invoke('get-spell-suggestions') as Promise<SpellCheckContext | null>,
+    addToDictionary: (word: string) => ipcRenderer.invoke('add-to-dictionary', word) as Promise<boolean>,
+    onSpellCheckContext: (callback: (context: SpellCheckContext) => void) => {
+        ipcRenderer.on('spell-check-context', (_event, context) => callback(context))
+    },
+    removeSpellCheckListener: () => {
+        ipcRenderer.removeAllListeners('spell-check-context')
+    }
 })
