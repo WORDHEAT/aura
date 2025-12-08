@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { Plus, Check, X, LayoutGrid, ChevronDown, ChevronRight, Folder, FolderOpen, Table as TableIcon, Trash2, Copy, FileText, Settings, Users, Globe } from 'lucide-react'
 import { useTableContext, type Workspace, type TableItem, type NoteItem } from '../context/TableContext'
+import { useSettings } from '../context/SettingsContext'
 import { SyncIndicator } from './SyncIndicator'
 import { WorkspaceSettingsModal } from './WorkspaceSettingsModal'
 import {
@@ -551,6 +552,7 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: Tab
     )
 
     // State for cross-workspace drag
+    const { settings } = useSettings()
     const [dragOverWorkspaceId, setDragOverWorkspaceId] = useState<string | null>(null)
     const [activeDragItem, setActiveDragItem] = useState<{ type: 'table' | 'note' | 'workspace', id: string, workspaceId: string } | null>(null)
     
@@ -650,6 +652,23 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: Tab
             deleteNote(deleteConfirm.workspaceId, deleteConfirm.id)
         }
         setDeleteConfirm(null)
+    }
+
+    // Handle delete with optional confirmation based on settings
+    const handleDeleteItem = (type: 'workspace' | 'table' | 'note', id: string, workspaceId?: string) => {
+        if (settings.confirmBeforeDelete) {
+            // Show inline confirmation
+            setDeleteConfirm({ type, id, workspaceId })
+        } else {
+            // Delete immediately
+            if (type === 'workspace') {
+                deleteWorkspace(id)
+            } else if (type === 'table' && workspaceId) {
+                deleteTable(workspaceId, id)
+            } else if (type === 'note' && workspaceId) {
+                deleteNote(workspaceId, id)
+            }
+        }
     }
 
     // Global drag handlers for cross-workspace moves
@@ -864,7 +883,7 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: Tab
                         <button
                             onClick={(e) => {
                                 e.stopPropagation()
-                                setDeleteConfirm({ type: 'workspace', id: workspace.id })
+                                handleDeleteItem('workspace', workspace.id)
                             }}
                             className="text-[#6b6b6b] hover:text-red-400 p-1.5 rounded hover:bg-[#333] transition-colors"
                             title="Delete workspace"
@@ -946,7 +965,7 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: Tab
                                     setDuplicateOptions(null)
                                 }}
                                 onCancelDuplicate={() => setDuplicateOptions(null)}
-                                onDelete={(id: string) => setDeleteConfirm({ type: 'table', id, workspaceId: workspace.id })}
+                                onDelete={(id: string) => handleDeleteItem('table', id, workspace.id)}
                                 onConfirmDelete={handleConfirmDelete}
                                 onCancelDelete={() => setDeleteConfirm(null)}
                             />
@@ -984,7 +1003,7 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: Tab
                                             setDuplicateOptions(null)
                                         }}
                                         onCancelDuplicate={() => setDuplicateOptions(null)}
-                                        onDelete={(id: string) => setDeleteConfirm({ type: 'note', id, workspaceId: workspace.id })}
+                                        onDelete={(id: string) => handleDeleteItem('note', id, workspace.id)}
                                         onConfirmDelete={handleConfirmDelete}
                                         onCancelDelete={() => setDeleteConfirm(null)}
                                     />
