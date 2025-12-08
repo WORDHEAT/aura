@@ -490,25 +490,25 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
                 )
             case 'date':
                 return (
-                    <div className="flex items-center gap-2 w-full">
+                    <div className="w-full overflow-hidden">
                         <input
                             type="date"
                             value={value || ''}
                             onChange={(e) => onChange(e.target.value)}
-                            className="flex-1 bg-transparent outline-none text-[#e3e3e3] text-sm min-h-[44px] sm:min-h-0 py-2 sm:py-0 [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:order-first [&::-webkit-calendar-picker-indicator]:mr-2"
+                            className="w-full bg-transparent outline-none text-[#e3e3e3] text-sm min-h-[44px] sm:min-h-0 py-2 sm:py-0 [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:order-first [&::-webkit-calendar-picker-indicator]:mr-2"
                         />
                     </div>
                 )
             case 'reminder':
                 return (
-                    <div className="flex items-center gap-2 w-full overflow-hidden">
+                    <div className="w-full overflow-hidden">
                         <button
                             onClick={() => setReminderModal({ rowId: row.id, colId: col.id })}
-                            className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors min-h-[44px] sm:min-h-0 w-full overflow-hidden"
+                            className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 transition-colors min-h-[44px] sm:min-h-0 max-w-full"
                         >
                             <Bell size={16} className="flex-shrink-0" />
                             {value ? (
-                                <span className="text-[#e3e3e3] text-xs sm:text-sm truncate flex-1 min-w-0">
+                                <span className="text-[#e3e3e3] text-xs sm:text-sm truncate">
                                     {(() => {
                                         try {
                                             return format(new Date(value), `${settings.dateFormat} ${settings.timeFormat}`)
@@ -518,7 +518,7 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
                                     })()}
                                 </span>
                             ) : (
-                                <span className="text-[#6b6b6b] text-xs sm:text-sm truncate">Set reminder</span>
+                                <span className="text-[#6b6b6b] text-xs sm:text-sm">Set reminder</span>
                             )}
                         </button>
                     </div>

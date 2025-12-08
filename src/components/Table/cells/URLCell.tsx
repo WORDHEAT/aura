@@ -9,7 +9,7 @@ export function URLCell({ value, onChange }: URLCellProps) {
     const hasValidUrl = value && (value.startsWith('http://') || value.startsWith('https://'))
 
     return (
-        <div className="flex items-center gap-2 w-full">
+        <div className="flex items-center gap-2 w-full overflow-hidden">
             <input
                 type="url"
                 value={value || ''}

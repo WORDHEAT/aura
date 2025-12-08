@@ -9,7 +9,7 @@ export function EmailCell({ value, onChange }: EmailCellProps) {
     const isValidEmail = value && value.includes('@')
 
     return (
-        <div className="flex items-center gap-2 w-full">
+        <div className="flex items-center gap-2 w-full overflow-hidden">
             <input
                 type="email"
                 value={value || ''}

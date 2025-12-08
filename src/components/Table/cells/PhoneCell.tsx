@@ -9,7 +9,7 @@ export function PhoneCell({ value, onChange }: PhoneCellProps) {
     const hasPhone = value && value.length > 3
 
     return (
-        <div className="flex items-center gap-2 w-full">
+        <div className="flex items-center gap-2 w-full overflow-hidden">
             <input
                 type="tel"
                 value={value || ''}
