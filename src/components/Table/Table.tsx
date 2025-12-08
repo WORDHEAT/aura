@@ -490,12 +490,14 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
                 )
             case 'date':
                 return (
-                    <input
-                        type="date"
-                        value={value || ''}
-                        onChange={(e) => onChange(e.target.value)}
-                        className="w-full bg-transparent outline-none text-[#e3e3e3] text-sm min-h-[44px] sm:min-h-0 py-2 sm:py-0 [color-scheme:dark]"
-                    />
+                    <div className="flex items-center gap-2 w-full">
+                        <input
+                            type="date"
+                            value={value || ''}
+                            onChange={(e) => onChange(e.target.value)}
+                            className="flex-1 bg-transparent outline-none text-[#e3e3e3] text-sm min-h-[44px] sm:min-h-0 py-2 sm:py-0 [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:order-first [&::-webkit-calendar-picker-indicator]:mr-2"
+                        />
+                    </div>
                 )
             case 'reminder':
                 return (
