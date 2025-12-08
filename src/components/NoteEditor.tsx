@@ -243,33 +243,42 @@ export function NoteEditor({ note }: NoteEditorProps) {
         return (window as Window & { electronAPI?: {
             getSpellSuggestions: () => Promise<{ misspelledWord: string; suggestions: string[] } | null>
             addToDictionary: (word: string) => Promise<boolean>
+            onSpellCheckContext: (callback: (context: { misspelledWord: string; suggestions: string[] }) => void) => void
+            removeSpellCheckListener: () => void
         }}).electronAPI
     }, [])
 
+    // Store latest spell check context from Electron
+    const spellContextRef = useRef<{ misspelledWord: string; suggestions: string[] } | null>(null)
+
+    // Listen for spell check context from Electron
+    useEffect(() => {
+        const electronAPI = getElectronAPI()
+        if (electronAPI) {
+            electronAPI.onSpellCheckContext((context) => {
+                spellContextRef.current = context
+            })
+            return () => {
+                electronAPI.removeSpellCheckListener()
+            }
+        }
+    }, [getElectronAPI])
+
     // Context menu handlers
-    const handleContextMenu = useCallback(async (e: React.MouseEvent) => {
+    const handleContextMenu = useCallback((e: React.MouseEvent) => {
         const textarea = textareaRef.current
         const selectedText = textarea ? content.substring(textarea.selectionStart, textarea.selectionEnd) : ''
         
         // Always prevent default - we'll show our custom menu
         e.preventDefault()
         
-        // Get spell suggestions from Electron if available
-        let spellSuggestions: string[] = []
-        let misspelledWord = ''
+        // Use spell context from ref (set by Electron IPC)
+        const spellContext = spellContextRef.current
+        const spellSuggestions = spellContext?.suggestions || []
+        const misspelledWord = spellContext?.misspelledWord || ''
         
-        const electronAPI = getElectronAPI()
-        if (electronAPI) {
-            try {
-                const spellContext = await electronAPI.getSpellSuggestions()
-                if (spellContext) {
-                    spellSuggestions = spellContext.suggestions
-                    misspelledWord = spellContext.misspelledWord
-                }
-            } catch (err) {
-                console.error('Failed to get spell suggestions:', err)
-            }
-        }
+        // Clear the spell context after using it
+        spellContextRef.current = null
         
         setContextMenu({
             isOpen: true,
@@ -278,7 +287,7 @@ export function NoteEditor({ note }: NoteEditorProps) {
             spellSuggestions,
             misspelledWord
         })
-    }, [content, getElectronAPI])
+    }, [content])
 
     const handleLongPress = useCallback((e: React.TouchEvent) => {
         const touch = e.touches[0] || e.changedTouches[0]

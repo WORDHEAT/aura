@@ -83,12 +83,28 @@ function createWindow() {
         icon: path.join(process.env.VITE_PUBLIC || '', 'icon.ico'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
+            spellcheck: true, // Enable spellcheck in webContents
         },
         width: 1200,
         height: 800,
         backgroundColor: '#191919', // Aura dark background
         autoHideMenuBar: true, // Hide menu bar
         show: false,
+    })
+
+    // Set up spell check context menu listener immediately after window creation
+    win.webContents.on('context-menu', (_event, params) => {
+        if (params.misspelledWord) {
+            lastSpellCheckContext = {
+                misspelledWord: params.misspelledWord,
+                suggestions: params.dictionarySuggestions || []
+            }
+            // Send to renderer immediately
+            win?.webContents.send('spell-check-context', lastSpellCheckContext)
+            log.info('Spell check context:', lastSpellCheckContext)
+        } else {
+            lastSpellCheckContext = null
+        }
     })
 
     win.once('ready-to-show', () => {
@@ -129,26 +145,10 @@ ipcMain.handle('add-to-dictionary', (_event, word: string) => {
 })
 
 app.whenReady().then(() => {
-    createWindow()
-    setupAutoUpdater()
-    
-    // Enable spell checking
+    // Enable spell checking at session level
     session.defaultSession.setSpellCheckerEnabled(true)
     session.defaultSession.setSpellCheckerLanguages(['en-US', 'en-GB'])
     
-    // Listen for context menu events to capture spell check info
-    if (win) {
-        win.webContents.on('context-menu', (_event, params) => {
-            if (params.misspelledWord) {
-                lastSpellCheckContext = {
-                    misspelledWord: params.misspelledWord,
-                    suggestions: params.dictionarySuggestions || []
-                }
-                // Send to renderer
-                win?.webContents.send('spell-check-context', lastSpellCheckContext)
-            } else {
-                lastSpellCheckContext = null
-            }
-        })
-    }
+    createWindow()
+    setupAutoUpdater()
 })
