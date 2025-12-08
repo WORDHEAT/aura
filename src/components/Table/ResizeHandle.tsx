@@ -68,16 +68,16 @@ export function ResizeHandle({ width, minWidth = 80, onResize }: ResizeHandlePro
         <div
             onMouseDown={handleMouseDown}
             onTouchStart={handleTouchStart}
-            className={`absolute right-0 top-0 bottom-0 w-6 sm:w-4 translate-x-1/2 cursor-col-resize z-10 flex justify-center group/resize select-none outline-none ${
+            className={`absolute right-0 top-0 bottom-0 w-4 translate-x-1/2 cursor-col-resize z-10 flex justify-center group/resize select-none outline-none touch-none ${
                 isResizing ? 'bg-blue-500/10' : ''
             }`}
             title="Drag to resize column"
         >
-            {/* The visible line indicator - always visible on mobile */}
-            <div className={`w-[3px] sm:w-[2px] h-full transition-colors duration-150 ${
+            {/* The visible line indicator - hidden until hover/touch */}
+            <div className={`w-[2px] h-full transition-colors duration-150 ${
                 isResizing 
                     ? 'bg-blue-500 shadow-[0_0_0_1px_rgba(59,130,246,0.5)]' 
-                    : 'bg-blue-500/30 sm:bg-transparent sm:group-hover/resize:bg-blue-500/50'
+                    : 'bg-transparent group-hover/resize:bg-blue-500/50'
             }`} />
         </div>
     )
