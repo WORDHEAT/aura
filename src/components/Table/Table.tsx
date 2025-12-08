@@ -139,7 +139,8 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
         updateTableCell, 
         updateTableCellColor,
         updateTableRowColor, 
-        deleteTableRow, 
+        deleteTableRow,
+        duplicateTableRow,
         addTableRowSibling, 
         addTableRowChild, 
         addTableRow,
@@ -394,6 +395,10 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
             }
         }
         deleteTableRow(tableId, rowId)
+    }
+
+    const duplicateRow = (rowId: string) => {
+        duplicateTableRow(tableId, rowId)
     }
 
     const updateCell = (rowId: string, colId: string, value: string) => {
@@ -751,6 +756,7 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
                                         onAddSubRow={addSubRow}
                                         onActionMenuClick={handleActionMenuClick}
                                         onDeleteRow={deleteRow}
+                                        onDuplicateRow={duplicateRow}
                                         onUpdateRowColor={updateRowColor}
                                         onUpdateCellColor={updateCellColor}
                                         onCopyCell={handleCopyCell}

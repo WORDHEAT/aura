@@ -131,6 +131,7 @@ interface TableContextType {
     updateTableCellColor: (tableId: string, rowId: string, colId: string, color: string) => void
     updateTableRowColor: (tableId: string, rowId: string, color: string) => void
     deleteTableRow: (tableId: string, rowId: string) => void
+    duplicateTableRow: (tableId: string, rowId: string) => void
     addTableRowSibling: (tableId: string, siblingId: string) => void
     addTableRowChild: (tableId: string, parentId: string) => void
     addTableRow: (tableId: string) => void
@@ -1019,6 +1020,40 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         }))
     }
 
+    // Helper to deep clone a row with new IDs
+    const cloneRowWithNewIds = (row: Row): Row => ({
+        id: crypto.randomUUID(),
+        cells: { ...row.cells },
+        colors: row.colors ? { ...row.colors } : undefined,
+        rowColor: row.rowColor,
+        isExpanded: row.isExpanded,
+        children: row.children?.map(cloneRowWithNewIds) || []
+    })
+
+    const duplicateTableRow = (tableId: string, rowId: string) => {
+        updateTableInWorkspaces(tableId, t => {
+            // Find the row and duplicate it
+            const duplicateInTree = (rows: Row[]): Row[] => {
+                const result: Row[] = []
+                for (const row of rows) {
+                    result.push({
+                        ...row,
+                        children: row.children ? duplicateInTree(row.children) : []
+                    })
+                    // If this is the row to duplicate, add a copy after it
+                    if (row.id === rowId) {
+                        result.push(cloneRowWithNewIds(row))
+                    }
+                }
+                return result
+            }
+            return {
+                ...t,
+                rows: duplicateInTree(t.rows)
+            }
+        })
+    }
+
     const addTableRowSibling = (tableId: string, siblingId: string) => {
         const newRow: Row = { id: crypto.randomUUID(), cells: {}, children: [] }
         updateTableInWorkspaces(tableId, t => ({
@@ -1341,6 +1376,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             updateTableCellColor,
             updateTableRowColor,
             deleteTableRow,
+            duplicateTableRow,
             addTableRowSibling,
             addTableRowChild,
             addTableRow,
