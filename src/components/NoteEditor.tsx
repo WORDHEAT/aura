@@ -1168,12 +1168,14 @@ export function NoteEditor({ note }: NoteEditorProps) {
                 <div className="flex items-center gap-2 sm:gap-4">
                     <span>L:{lineCount}</span>
                     <span>W:{wordCount}</span>
-                    <span className="hidden sm:inline">C:{charCount}</span>
+                    <span>C:{charCount}</span>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
                     <span className="hidden sm:inline">{note.isMonospace ? 'Mono' : 'Sans'}</span>
                     <span className="hidden sm:inline">{note.wordWrap ? 'Wrap' : 'No wrap'}</span>
-                    <span>{(note.spellCheck ?? !note.isMonospace) ? '✓' : '✗'}</span>
+                    <span className="hidden sm:inline">{(note.spellCheck ?? !note.isMonospace) ? 'Spell ✓' : 'Spell ✗'}</span>
+                    <span className="hidden sm:inline">Updated: {new Date(note.updatedAt).toLocaleString()}</span>
+                    <span className="sm:hidden">{new Date(note.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                 </div>
             </div>
 
