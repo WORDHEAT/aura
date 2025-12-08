@@ -613,8 +613,8 @@ export function NoteEditor({ note }: NoteEditorProps) {
     return (
         <div className={`flex flex-col h-full ${isFullScreen ? 'fixed inset-0 z-[200] bg-[#191919]' : ''}`}>
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[#373737] bg-[#202020]">
-                <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-2 sm:py-3 border-b border-[#373737] bg-[#202020] gap-2">
+                <div className="flex items-center gap-3 min-w-0">
                     {isEditingTitle ? (
                         <input
                             type="text"
@@ -658,7 +658,7 @@ export function NoteEditor({ note }: NoteEditorProps) {
                 </div>
 
                 {/* Toolbar */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar flex-shrink-0">
                     {/* Toggle buttons */}
                     <button
                         onClick={() => updateNoteSettings(note.id, { isMonospace: !note.isMonospace })}
@@ -1164,19 +1164,16 @@ export function NoteEditor({ note }: NoteEditorProps) {
             </div>
 
             {/* Status Bar */}
-            <div className="flex items-center justify-between px-4 py-2 bg-[#1a1a1a] border-t border-[#373737] text-xs text-[#6b6b6b]">
-                <div className="flex items-center gap-4">
-                    <span>Lines: {lineCount}</span>
-                    <span>Words: {wordCount}</span>
-                    <span>Characters: {charCount}</span>
+            <div className="flex items-center justify-between px-4 py-2 bg-[#1a1a1a] border-t border-[#373737] text-xs text-[#6b6b6b] overflow-x-auto">
+                <div className="flex items-center gap-2 sm:gap-4">
+                    <span>L:{lineCount}</span>
+                    <span>W:{wordCount}</span>
+                    <span className="hidden sm:inline">C:{charCount}</span>
                 </div>
-                <div className="flex items-center gap-4">
-                    <span>{note.isMonospace ? 'Monospace' : 'Sans-serif'}</span>
-                    <span>{note.wordWrap ? 'Wrap' : 'No wrap'}</span>
-                    <span>{(note.spellCheck ?? !note.isMonospace) ? 'Spell ✓' : 'Spell ✗'}</span>
-                    <span>
-                        Updated: {new Date(note.updatedAt).toLocaleString()}
-                    </span>
+                <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+                    <span className="hidden sm:inline">{note.isMonospace ? 'Mono' : 'Sans'}</span>
+                    <span className="hidden sm:inline">{note.wordWrap ? 'Wrap' : 'No wrap'}</span>
+                    <span>{(note.spellCheck ?? !note.isMonospace) ? '✓' : '✗'}</span>
                 </div>
             </div>
 
