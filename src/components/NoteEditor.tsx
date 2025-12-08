@@ -237,10 +237,10 @@ export function NoteEditor({ note }: NoteEditorProps) {
         const start = textarea.selectionStart
         const newContent = content.substring(0, start) + '\n---\n' + content.substring(start)
         updateContent(newContent)
-        setTimeout(() => {
+        requestAnimationFrame(() => {
             textarea.focus()
             textarea.setSelectionRange(start + 5, start + 5)
-        }, 0)
+        })
     }, [content, updateContent])
 
     // Check if running in Electron (type-safe access)
@@ -348,10 +348,10 @@ export function NoteEditor({ note }: NoteEditorProps) {
         navigator.clipboard.writeText(selectedText)
         const newContent = content.substring(0, start) + content.substring(end)
         updateContent(newContent)
-        setTimeout(() => {
+        requestAnimationFrame(() => {
             textarea.focus()
             textarea.setSelectionRange(start, start)
-        }, 0)
+        })
     }, [content, updateContent])
 
     const handlePaste = useCallback(async () => {
@@ -1110,12 +1110,11 @@ export function NoteEditor({ note }: NoteEditorProps) {
                                                         type="checkbox" 
                                                         checked={isChecked}
                                                         onChange={() => {
-                                                            // Toggle checkbox in content
+                                                            // Toggle checkbox in content (use updateContent for undo history)
                                                             const newContent = isChecked 
                                                                 ? content.replace(/\[x\]/gi, '[ ]').replace('☑', '☐')
                                                                 : content.replace('[ ]', '[x]').replace('☐', '☑')
-                                                            setContent(newContent)
-                                                            updateNoteContent(note.id, newContent)
+                                                            updateContent(newContent)
                                                         }}
                                                         className="mt-1 w-4 h-4 rounded border-[#373737] bg-[#2a2a2a] checked:bg-blue-500 cursor-pointer"
                                                     />
