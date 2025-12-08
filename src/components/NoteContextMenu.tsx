@@ -18,7 +18,8 @@ import {
     Scissors,
     SpellCheck,
     Undo2,
-    Redo2
+    Redo2,
+    BookPlus
 } from 'lucide-react'
 
 interface ContextMenuItem {
@@ -45,7 +46,9 @@ interface NoteContextMenuProps {
     canUndo: boolean
     canRedo: boolean
     spellingSuggestions?: string[]
+    misspelledWord?: string
     onApplySuggestion?: (suggestion: string) => void
+    onAddToDictionary?: () => void
 }
 
 export function NoteContextMenu({
@@ -63,7 +66,9 @@ export function NoteContextMenu({
     canUndo,
     canRedo,
     spellingSuggestions = [],
-    onApplySuggestion
+    misspelledWord = '',
+    onApplySuggestion,
+    onAddToDictionary
 }: NoteContextMenuProps) {
     const menuRef = useRef<HTMLDivElement>(null)
 
@@ -100,7 +105,13 @@ export function NoteContextMenu({
             icon: <SpellCheck size={14} />,
             action: () => onApplySuggestion?.(suggestion),
         })),
-        ...(spellingSuggestions.length > 0 ? [{ divider: true as const }] : []),
+        // Add to dictionary option (when misspelled word exists)
+        ...(misspelledWord && onAddToDictionary ? [{
+            label: `Add "${misspelledWord}" to dictionary`,
+            icon: <BookPlus size={14} />,
+            action: onAddToDictionary,
+        }] : []),
+        ...(spellingSuggestions.length > 0 || misspelledWord ? [{ divider: true as const }] : []),
 
         // Edit actions
         {

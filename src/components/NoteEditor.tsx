@@ -65,10 +65,18 @@ export function NoteEditor({ note }: NoteEditorProps) {
     const [showFormatBar, setShowFormatBar] = useState(true)
     
     // Context menu state
-    const [contextMenu, setContextMenu] = useState<{ isOpen: boolean; position: { x: number; y: number }; selectedText: string }>({
+    const [contextMenu, setContextMenu] = useState<{ 
+        isOpen: boolean; 
+        position: { x: number; y: number }; 
+        selectedText: string;
+        spellSuggestions: string[];
+        misspelledWord: string;
+    }>({
         isOpen: false,
         position: { x: 0, y: 0 },
-        selectedText: ''
+        selectedText: '',
+        spellSuggestions: [],
+        misspelledWord: ''
     })
     
     // Undo/Redo history
@@ -230,26 +238,47 @@ export function NoteEditor({ note }: NoteEditorProps) {
         }, 0)
     }, [content, updateContent])
 
+    // Check if running in Electron (type-safe access)
+    const getElectronAPI = useCallback(() => {
+        return (window as Window & { electronAPI?: {
+            getSpellSuggestions: () => Promise<{ misspelledWord: string; suggestions: string[] } | null>
+            addToDictionary: (word: string) => Promise<boolean>
+        }}).electronAPI
+    }, [])
+
     // Context menu handlers
-    // Only show custom menu when text is selected (for formatting)
-    // Otherwise, let browser handle it (for spell suggestions)
-    const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    const handleContextMenu = useCallback(async (e: React.MouseEvent) => {
         const textarea = textareaRef.current
         const selectedText = textarea ? content.substring(textarea.selectionStart, textarea.selectionEnd) : ''
         
-        // If no text selected, let browser show native menu (spell check suggestions)
-        if (!selectedText) {
-            return // Don't prevent default - browser handles it
+        // Always prevent default - we'll show our custom menu
+        e.preventDefault()
+        
+        // Get spell suggestions from Electron if available
+        let spellSuggestions: string[] = []
+        let misspelledWord = ''
+        
+        const electronAPI = getElectronAPI()
+        if (electronAPI) {
+            try {
+                const spellContext = await electronAPI.getSpellSuggestions()
+                if (spellContext) {
+                    spellSuggestions = spellContext.suggestions
+                    misspelledWord = spellContext.misspelledWord
+                }
+            } catch (err) {
+                console.error('Failed to get spell suggestions:', err)
+            }
         }
         
-        // Text selected - show our custom formatting menu
-        e.preventDefault()
         setContextMenu({
             isOpen: true,
             position: { x: e.clientX, y: e.clientY },
-            selectedText
+            selectedText,
+            spellSuggestions,
+            misspelledWord
         })
-    }, [content])
+    }, [content, getElectronAPI])
 
     const handleLongPress = useCallback((e: React.TouchEvent) => {
         const touch = e.touches[0] || e.changedTouches[0]
@@ -258,7 +287,9 @@ export function NoteEditor({ note }: NoteEditorProps) {
         setContextMenu({
             isOpen: true,
             position: { x: touch.clientX, y: touch.clientY },
-            selectedText
+            selectedText,
+            spellSuggestions: [],
+            misspelledWord: ''
         })
     }, [content])
 
@@ -307,6 +338,51 @@ export function NoteEditor({ note }: NoteEditorProps) {
             console.error('Failed to paste:', err)
         }
     }, [content, updateContent])
+
+    // Replace misspelled word with suggestion
+    const handleApplySuggestion = useCallback((suggestion: string) => {
+        if (!contextMenu.misspelledWord) return
+        
+        const textarea = textareaRef.current
+        if (!textarea) return
+        
+        // Find the misspelled word in content and replace it
+        const cursorPos = textarea.selectionStart
+        
+        // Search for the misspelled word around cursor position
+        const searchStart = Math.max(0, cursorPos - 50)
+        const searchEnd = Math.min(content.length, cursorPos + 50)
+        const searchArea = content.substring(searchStart, searchEnd)
+        
+        const wordIndex = searchArea.lastIndexOf(contextMenu.misspelledWord)
+        if (wordIndex !== -1) {
+            const absoluteIndex = searchStart + wordIndex
+            const newContent = 
+                content.substring(0, absoluteIndex) + 
+                suggestion + 
+                content.substring(absoluteIndex + contextMenu.misspelledWord.length)
+            updateContent(newContent)
+            
+            setTimeout(() => {
+                textarea.focus()
+                textarea.setSelectionRange(absoluteIndex + suggestion.length, absoluteIndex + suggestion.length)
+            }, 0)
+        }
+    }, [content, contextMenu.misspelledWord, updateContent])
+
+    // Add word to dictionary
+    const handleAddToDictionary = useCallback(async () => {
+        if (!contextMenu.misspelledWord) return
+        
+        const electronAPI = getElectronAPI()
+        if (electronAPI) {
+            try {
+                await electronAPI.addToDictionary(contextMenu.misspelledWord)
+            } catch (err) {
+                console.error('Failed to add word to dictionary:', err)
+            }
+        }
+    }, [contextMenu.misspelledWord, getElectronAPI])
 
     // Cleanup timeout on unmount
     useEffect(() => {
@@ -1089,6 +1165,10 @@ export function NoteEditor({ note }: NoteEditorProps) {
                 onRedo={handleRedo}
                 canUndo={historyIndex > 0}
                 canRedo={historyIndex < history.length - 1}
+                spellingSuggestions={contextMenu.spellSuggestions}
+                misspelledWord={contextMenu.misspelledWord}
+                onApplySuggestion={handleApplySuggestion}
+                onAddToDictionary={handleAddToDictionary}
             />
         </div>
     )
