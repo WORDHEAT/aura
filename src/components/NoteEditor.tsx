@@ -160,6 +160,9 @@ export function NoteEditor({ note }: NoteEditorProps) {
         const textarea = textareaRef.current
         if (!textarea) return
         
+        // Save scroll position
+        const scrollTop = textarea.scrollTop
+        
         const start = textarea.selectionStart
         const end = textarea.selectionEnd
         const selectedText = content.substring(start, end)
@@ -172,20 +175,20 @@ export function NoteEditor({ note }: NoteEditorProps) {
         
         updateContent(newContent)
         
-        // Set cursor position
-        setTimeout(() => {
+        // Restore cursor and scroll position
+        requestAnimationFrame(() => {
             textarea.focus()
-            if (selectedText) {
-                textarea.setSelectionRange(start + prefix.length, start + prefix.length + textToWrap.length)
-            } else {
-                textarea.setSelectionRange(start + prefix.length, start + prefix.length + textToWrap.length)
-            }
-        }, 0)
+            textarea.setSelectionRange(start + prefix.length, start + prefix.length + textToWrap.length)
+            textarea.scrollTop = scrollTop
+        })
     }, [content, updateContent])
 
     const insertLinePrefix = useCallback((prefix: string) => {
         const textarea = textareaRef.current
         if (!textarea) return
+        
+        // Save scroll position
+        const scrollTop = textarea.scrollTop
         
         const start = textarea.selectionStart
         const end = textarea.selectionEnd
@@ -206,10 +209,12 @@ export function NoteEditor({ note }: NoteEditorProps) {
         
         updateContent(newContent)
         
-        setTimeout(() => {
+        // Restore cursor and scroll position
+        requestAnimationFrame(() => {
             textarea.focus()
             textarea.setSelectionRange(lineStart + prefix.length, lineStart + prefixedLines.length)
-        }, 0)
+            textarea.scrollTop = scrollTop
+        })
     }, [content, updateContent])
 
     // Format action handlers (wrapped in useCallback for stable references)
@@ -304,6 +309,10 @@ export function NoteEditor({ note }: NoteEditorProps) {
     }, [content, getElectronAPI])
 
     const handleLongPress = useCallback((e: React.TouchEvent) => {
+        // Only show custom menu in Electron, let browser handle mobile natively
+        const electronAPI = getElectronAPI()
+        if (!electronAPI) return
+        
         const touch = e.touches[0] || e.changedTouches[0]
         const textarea = textareaRef.current
         const selectedText = textarea ? content.substring(textarea.selectionStart, textarea.selectionEnd) : ''
@@ -314,8 +323,9 @@ export function NoteEditor({ note }: NoteEditorProps) {
             spellSuggestions: [],
             misspelledWord: ''
         })
-    }, [content])
+    }, [content, getElectronAPI])
 
+    // Only use long press handler in Electron
     const longPressHandlers = useLongPress(handleLongPress, 500)
 
     const closeContextMenu = useCallback(() => {
