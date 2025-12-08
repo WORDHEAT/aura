@@ -388,6 +388,11 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
     }
 
     const deleteRow = (rowId: string) => {
+        if (settings.confirmBeforeDelete) {
+            if (!window.confirm('Are you sure you want to delete this row?')) {
+                return
+            }
+        }
         deleteTableRow(tableId, rowId)
     }
 
@@ -632,7 +637,7 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
         <div className="overflow-hidden border border-[#373737] rounded-xl bg-[#202020] shadow-xl">
             <div className="overflow-x-auto custom-scrollbar">
                 {/* ... table ... */}
-                <table className="w-full text-left text-sm" style={{ tableLayout: 'fixed' }}>
+                <table className={`w-full text-left ${settings.fontSize === 'small' ? 'text-xs' : settings.fontSize === 'large' ? 'text-base' : 'text-sm'}`} style={{ tableLayout: 'fixed' }}>
                     {/* ... existing rendering ... */}
                     <thead className="bg-[#252525] text-[#9b9b9b] text-xs font-medium uppercase tracking-wider sticky top-0 z-50 shadow-sm">
                         <tr>
