@@ -501,14 +501,14 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
                 )
             case 'reminder':
                 return (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-full overflow-hidden">
                         <button
                             onClick={() => setReminderModal({ rowId: row.id, colId: col.id })}
-                            className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors min-h-[44px] sm:min-h-0"
+                            className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors min-h-[44px] sm:min-h-0 w-full overflow-hidden"
                         >
                             <Bell size={16} className="flex-shrink-0" />
                             {value ? (
-                                <span className="text-[#e3e3e3] text-xs sm:text-sm truncate">
+                                <span className="text-[#e3e3e3] text-xs sm:text-sm truncate flex-1 min-w-0">
                                     {(() => {
                                         try {
                                             return format(new Date(value), `${settings.dateFormat} ${settings.timeFormat}`)
@@ -518,7 +518,7 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
                                     })()}
                                 </span>
                             ) : (
-                                <span className="text-[#6b6b6b] text-xs sm:text-sm">Set reminder</span>
+                                <span className="text-[#6b6b6b] text-xs sm:text-sm truncate">Set reminder</span>
                             )}
                         </button>
                     </div>
