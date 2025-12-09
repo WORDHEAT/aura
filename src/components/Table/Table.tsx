@@ -15,6 +15,8 @@ import { RatingCell } from './cells/RatingCell'
 import { ProgressCell } from './cells/ProgressCell'
 import { FileCell } from './cells/FileCell'
 import { CommentCell } from './cells/CommentCell'
+import { PasswordCell } from './cells/PasswordCell'
+import { UsernameCell } from './cells/UsernameCell'
 import { useSettings } from '../../context/SettingsContext'
 import { useTableContext } from '../../context/TableContext'
 import { useAuth } from '../../context/AuthContext'
@@ -57,6 +59,7 @@ export type ColumnType =
     | 'progress'
     | 'file'
     | 'password'
+    | 'username'
     | 'comment'
 
 export type SummaryType = 'sum' | 'avg' | 'min' | 'max' | 'count' | 'none'
@@ -480,15 +483,9 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
             case 'comment':
                 return <CommentCell value={value} onChange={onChange} />
             case 'password':
-                return (
-                    <input
-                        type="password"
-                        className="w-full bg-transparent outline-none text-[#e3e3e3] placeholder-[#6b6b6b] focus:placeholder-[#9b9b9b] text-sm min-h-[44px] sm:min-h-0 py-2 sm:py-0"
-                        placeholder="********"
-                        value={value}
-                        onChange={(e) => onChange(e.target.value)}
-                    />
-                )
+                return <PasswordCell value={value} onChange={onChange} />
+            case 'username':
+                return <UsernameCell value={value} onChange={onChange} />
             case 'date':
                 return (
                     <div className="w-full overflow-hidden relative">

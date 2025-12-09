@@ -6,7 +6,7 @@ import {
     List, Tags, Link, Mail, Phone,
     Star, BarChart2, Paperclip, Bell,
     Trash2, Lock, Copy, CopyPlus,
-    MessageSquare
+    MessageSquare, User
 } from 'lucide-react'
 import type { Column, ColumnType } from './Table'
 
@@ -38,6 +38,7 @@ const getTypeConfig = (type: ColumnType) => {
         case 'reminder': return { icon: Bell, label: 'Reminder', color: 'text-red-400' }
         case 'file': return { icon: Paperclip, label: 'File', color: 'text-blue-300' }
         case 'password': return { icon: Lock, label: 'Password', color: 'text-purple-300' }
+        case 'username': return { icon: User, label: 'Username', color: 'text-sky-400' }
         case 'comment': return { icon: MessageSquare, label: 'Comment', color: 'text-teal-400' }
         default: return { icon: Type, label: 'Text', color: 'text-gray-400' }
     }
@@ -293,7 +294,7 @@ export function ColumnHeader({ column, onUpdate, onDelete, onDuplicate, cellValu
                             })}
 
                             <div className="text-[10px] font-semibold text-[#6b6b6b] uppercase px-2 py-1 mt-1">Advanced</div>
-                            {['url', 'email', 'phone', 'rating', 'progress', 'reminder', 'file', 'password', 'comment'].map((t) => {
+                            {['url', 'email', 'phone', 'username', 'password', 'rating', 'progress', 'reminder', 'file', 'comment'].map((t) => {
                                 const config = getTypeConfig(t as ColumnType)
                                 return (
                                     <button
