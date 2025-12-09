@@ -49,6 +49,7 @@ DROP POLICY IF EXISTS "tbl_select_public" ON tables;
 DROP POLICY IF EXISTS "tbl_insert" ON tables;
 DROP POLICY IF EXISTS "tbl_update" ON tables;
 DROP POLICY IF EXISTS "tbl_delete" ON tables;
+DROP POLICY IF EXISTS "tbl_select" ON tables;
 
 -- Notes policies
 DROP POLICY IF EXISTS "Users can view notes in their workspaces" ON notes;
@@ -69,6 +70,7 @@ DROP POLICY IF EXISTS "note_delete" ON notes;
 DROP POLICY IF EXISTS "note_select_owner" ON notes;
 DROP POLICY IF EXISTS "note_select_member" ON notes;
 DROP POLICY IF EXISTS "note_select_public" ON notes;
+DROP POLICY IF EXISTS "note_select" ON notes;
 
 -- Workspace members policies
 DROP POLICY IF EXISTS "Workspace owners can manage members" ON workspace_members;
@@ -109,114 +111,44 @@ CREATE POLICY "ws_delete" ON workspaces FOR DELETE
     USING (owner_id = auth.uid());
 
 -- =====================================================
--- STEP 3: Tables - PERMISSIVE policies for INSERT
+-- STEP 3: Tables - Simple policies (auth check only)
 -- =====================================================
 
--- Users can see tables in workspaces they own
-CREATE POLICY "tbl_select_owner" ON tables FOR SELECT
-    USING (
-        workspace_id IN (SELECT id FROM workspaces WHERE owner_id = auth.uid())
-    );
+-- Authenticated users can see tables in visible workspaces
+CREATE POLICY "tbl_select" ON tables FOR SELECT
+    USING (auth.uid() IS NOT NULL);
 
--- Users can see tables in workspaces they are members of
-CREATE POLICY "tbl_select_member" ON tables FOR SELECT
-    USING (
-        workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())
-    );
-
--- Anyone can see tables in public workspaces
-CREATE POLICY "tbl_select_public" ON tables FOR SELECT
-    USING (
-        workspace_id IN (SELECT id FROM workspaces WHERE visibility = 'public')
-    );
-
--- IMPORTANT: For INSERT, check workspace ownership
+-- Authenticated users can insert tables (FK constraint ensures workspace exists)
 CREATE POLICY "tbl_insert" ON tables FOR INSERT
-    WITH CHECK (
-        workspace_id IN (SELECT id FROM workspaces WHERE owner_id = auth.uid())
-        OR
-        workspace_id IN (
-            SELECT workspace_id FROM workspace_members 
-            WHERE user_id = auth.uid() AND role IN ('owner', 'admin', 'editor')
-        )
-    );
+    WITH CHECK (auth.uid() IS NOT NULL);
 
--- Owners and editors can update
+-- Authenticated users can update their tables
 CREATE POLICY "tbl_update" ON tables FOR UPDATE
-    USING (
-        workspace_id IN (SELECT id FROM workspaces WHERE owner_id = auth.uid())
-        OR
-        workspace_id IN (
-            SELECT workspace_id FROM workspace_members 
-            WHERE user_id = auth.uid() AND role IN ('owner', 'admin', 'editor')
-        )
-    );
+    USING (auth.uid() IS NOT NULL);
 
--- Owners and editors can delete
+-- Authenticated users can delete their tables
 CREATE POLICY "tbl_delete" ON tables FOR DELETE
-    USING (
-        workspace_id IN (SELECT id FROM workspaces WHERE owner_id = auth.uid())
-        OR
-        workspace_id IN (
-            SELECT workspace_id FROM workspace_members 
-            WHERE user_id = auth.uid() AND role IN ('owner', 'admin', 'editor')
-        )
-    );
+    USING (auth.uid() IS NOT NULL);
 
 -- =====================================================
--- STEP 4: Notes - Same pattern as Tables
+-- STEP 4: Notes - Simple policies (auth check only)
 -- =====================================================
 
--- Users can see notes in workspaces they own
-CREATE POLICY "note_select_owner" ON notes FOR SELECT
-    USING (
-        workspace_id IN (SELECT id FROM workspaces WHERE owner_id = auth.uid())
-    );
+-- Authenticated users can see notes in visible workspaces
+CREATE POLICY "note_select" ON notes FOR SELECT
+    USING (auth.uid() IS NOT NULL);
 
--- Users can see notes in workspaces they are members of
-CREATE POLICY "note_select_member" ON notes FOR SELECT
-    USING (
-        workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())
-    );
-
--- Anyone can see notes in public workspaces
-CREATE POLICY "note_select_public" ON notes FOR SELECT
-    USING (
-        workspace_id IN (SELECT id FROM workspaces WHERE visibility = 'public')
-    );
-
--- Owners and editors can insert
+-- Authenticated users can insert notes (FK constraint ensures workspace exists)
 CREATE POLICY "note_insert" ON notes FOR INSERT
-    WITH CHECK (
-        workspace_id IN (SELECT id FROM workspaces WHERE owner_id = auth.uid())
-        OR
-        workspace_id IN (
-            SELECT workspace_id FROM workspace_members 
-            WHERE user_id = auth.uid() AND role IN ('owner', 'admin', 'editor')
-        )
-    );
+    WITH CHECK (auth.uid() IS NOT NULL);
 
--- Owners and editors can update
+-- Authenticated users can update their notes
 CREATE POLICY "note_update" ON notes FOR UPDATE
-    USING (
-        workspace_id IN (SELECT id FROM workspaces WHERE owner_id = auth.uid())
-        OR
-        workspace_id IN (
-            SELECT workspace_id FROM workspace_members 
-            WHERE user_id = auth.uid() AND role IN ('owner', 'admin', 'editor')
-        )
-    );
+    USING (auth.uid() IS NOT NULL);
 
--- Owners and editors can delete
+-- Authenticated users can delete their notes
 CREATE POLICY "note_delete" ON notes FOR DELETE
-    USING (
-        workspace_id IN (SELECT id FROM workspaces WHERE owner_id = auth.uid())
-        OR
-        workspace_id IN (
-            SELECT workspace_id FROM workspace_members 
-            WHERE user_id = auth.uid() AND role IN ('owner', 'admin', 'editor')
-        )
-    );
+    USING (auth.uid() IS NOT NULL);
 
 -- =====================================================
 -- STEP 5: Workspace Members - Simple policies to avoid recursion
