@@ -435,8 +435,8 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 }
             }
             
-            // Process all workspaces
-            const allPromises: Promise<void>[] = []
+            // STEP 1: Sync all workspaces FIRST (they must exist before tables/notes)
+            const workspacePromises: Promise<void>[] = []
             
             for (const workspace of workspacesToPush) {
                 const isOwner = workspace.ownerId === user.id || !workspace.ownerId
@@ -444,7 +444,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 
                 // Only owners can create/update workspaces
                 if (isOwner) {
-                    allPromises.push(
+                    workspacePromises.push(
                         syncService.updateWorkspace(workspace, wsIndex)
                             .catch(() => syncService.createWorkspace(workspace, wsIndex))
                             .catch(err => {
@@ -453,19 +453,27 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                             })
                     )
                 }
-                
+            }
+            
+            // Wait for all workspaces to be created/updated
+            await Promise.all(workspacePromises)
+            
+            // STEP 2: Now sync tables and notes (workspace exists now)
+            const contentPromises: Promise<void>[] = []
+            
+            for (const workspace of workspacesToPush) {
                 // Update tables in parallel
                 for (let i = 0; i < workspace.tables.length; i++) {
-                    allPromises.push(upsertTable(workspace.id, workspace.tables[i], i))
+                    contentPromises.push(upsertTable(workspace.id, workspace.tables[i], i))
                 }
                 
                 // Update notes in parallel
                 for (let i = 0; i < workspace.notes.length; i++) {
-                    allPromises.push(upsertNote(workspace.id, workspace.notes[i], i))
+                    contentPromises.push(upsertNote(workspace.id, workspace.notes[i], i))
                 }
             }
             
-            await Promise.all(allPromises)
+            await Promise.all(contentPromises)
             
             // Process pending deletions
             const pendingOps = getPendingOps()
