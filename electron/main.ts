@@ -72,27 +72,34 @@ function setupAutoUpdater() {
 
     autoUpdater.on('update-downloaded', (info: { version: string }) => {
         log.info('Update downloaded:', info.version)
-        dialog.showMessageBox(win!, {
-            type: 'info',
-            title: 'Update Ready',
-            message: `Version ${info.version} has been downloaded. Restart the app to apply the update.`,
-            buttons: ['Restart Now', 'Later']
-        }).then((result) => {
-            if (result.response === 0) {
-                autoUpdater.quitAndInstall()
-            }
-        })
+        if (win) {
+            dialog.showMessageBox(win, {
+                type: 'info',
+                title: 'Update Ready',
+                message: `Version ${info.version} has been downloaded. Restart the app to apply the update.`,
+                buttons: ['Restart Now', 'Later']
+            }).then((result) => {
+                if (result.response === 0) {
+                    autoUpdater.quitAndInstall()
+                }
+            })
+        } else {
+            // No window, just install
+            autoUpdater.quitAndInstall()
+        }
     })
 
     autoUpdater.on('error', (err: Error) => {
         log.error('Update error:', err)
         isManualUpdateCheck = false
-        dialog.showMessageBox(win!, {
-            type: 'error',
-            title: 'Update Error',
-            message: `Failed to download update: ${err.message}\n\nPlease check your antivirus settings or download the update manually from GitHub.`,
-            buttons: ['OK']
-        })
+        if (win) {
+            dialog.showMessageBox(win, {
+                type: 'error',
+                title: 'Update Error',
+                message: `Failed to download update: ${err.message}\n\nPlease check your antivirus settings or download the update manually from GitHub.`,
+                buttons: ['OK']
+            })
+        }
     })
 }
 
@@ -115,6 +122,13 @@ function createWindow() {
 
     win.once('ready-to-show', () => {
         win?.show()
+    })
+    
+    // Enable DevTools shortcut (Ctrl+Shift+I or F12) even in production
+    win.webContents.on('before-input-event', (_event, input) => {
+        if ((input.control && input.shift && input.key === 'I') || input.key === 'F12') {
+            win?.webContents.toggleDevTools()
+        }
     })
 
     if (VITE_DEV_SERVER_URL) {
