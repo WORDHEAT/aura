@@ -9,9 +9,9 @@ export function URLCell({ value, onChange }: URLCellProps) {
     const hasValidUrl = value && (value.startsWith('http://') || value.startsWith('https://'))
 
     return (
-        <div className="flex items-center gap-2 w-full overflow-hidden">
+        <div className="flex items-center w-full overflow-hidden">
             <input
-                type="url"
+                type="text"
                 value={value || ''}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder="https://..."
@@ -22,7 +22,7 @@ export function URLCell({ value, onChange }: URLCellProps) {
                     href={value}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-300 flex-shrink-0"
+                    className="text-blue-400 hover:text-blue-300 flex-shrink-0 ml-2"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <ExternalLink size={14} />
