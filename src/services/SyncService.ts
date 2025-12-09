@@ -256,7 +256,7 @@ export class SyncService {
 
     // Update a workspace
     async updateWorkspace(workspace: Workspace, position: number): Promise<void> {
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('workspaces')
             .update({
                 name: workspace.name,
@@ -265,10 +265,16 @@ export class SyncService {
                 position
             })
             .eq('id', workspace.id)
+            .select()
 
         if (error) {
             console.error('Error updating workspace:', error)
             throw error
+        }
+        
+        // Check if update actually affected a row
+        if (!data || data.length === 0) {
+            throw new Error('Workspace not found in database')
         }
     }
     
