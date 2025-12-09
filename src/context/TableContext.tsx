@@ -437,36 +437,34 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             
             // STEP 1: Sync all workspaces FIRST (they must exist before tables/notes)
             const successfulWorkspaces = new Set<string>()
-            const workspacePromises: Promise<void>[] = []
             
+            // Sync workspaces sequentially to ensure they exist before content
             for (const workspace of workspacesToPush) {
                 const isOwner = workspace.ownerId === user.id || !workspace.ownerId
                 const wsIndex = workspacesToPush.indexOf(workspace)
                 
                 // Only owners can create/update workspaces
                 if (isOwner) {
-                    workspacePromises.push(
-                        syncService.updateWorkspace(workspace, wsIndex)
-                            .then(() => {
-                                successfulWorkspaces.add(workspace.id)
-                            })
-                            .catch(() => syncService.createWorkspace(workspace, wsIndex))
-                            .then(() => {
-                                successfulWorkspaces.add(workspace.id)
-                            })
-                            .catch(err => {
-                                console.error('❌ Workspace sync failed:', workspace.id, err)
-                                hasErrors = true
-                            })
-                    )
-                } else {
-                    // Not owner but workspace exists in cloud - mark as successful for content sync
-                    successfulWorkspaces.add(workspace.id)
+                    try {
+                        // Try update first
+                        await syncService.updateWorkspace(workspace, wsIndex)
+                        successfulWorkspaces.add(workspace.id)
+                        console.log(`✅ Workspace updated: ${workspace.id}`)
+                    } catch {
+                        // Update failed, try create
+                        try {
+                            await syncService.createWorkspace(workspace, wsIndex)
+                            successfulWorkspaces.add(workspace.id)
+                            console.log(`✅ Workspace created: ${workspace.id}`)
+                        } catch (err) {
+                            console.error('❌ Workspace sync failed:', workspace.id, err)
+                            hasErrors = true
+                        }
+                    }
                 }
+                // Note: Non-owner workspaces are NOT added to successfulWorkspaces
+                // They should already exist in cloud if user is a member
             }
-            
-            // Wait for all workspaces to be created/updated
-            await Promise.all(workspacePromises)
             
             console.log(`✅ Synced ${successfulWorkspaces.size}/${workspacesToPush.length} workspaces`)
             
