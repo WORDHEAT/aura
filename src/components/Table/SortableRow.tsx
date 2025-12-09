@@ -294,21 +294,18 @@ export const SortableRow = memo(function SortableRow({
                     className={`px-3 sm:px-4 ${settings.showGridLines ? 'border-r' : ''} border-[#373737] last:border-r-0 relative group/cell ${row.colors?.[col.id] || ''} ${settings.compactMode ? 'py-1' : 'py-2.5'}`}
                     style={{ width: col.width || 150, minWidth: 80 }}
                 >
-                    <div className="w-full h-full min-h-[24px] flex items-center gap-2">
+                    <div className="w-full h-full min-h-[24px] flex items-center">
                         {/* Render Indent and Toggle for First Column */}
-                        {colIndex === 0 && (
-                            <div className="flex items-center flex-shrink-0" style={{ paddingLeft: `${level * 20}px` }}>
+                        {colIndex === 0 && (level > 0 || (row.children && row.children.length > 0)) && (
+                            <div className="flex items-center flex-shrink-0 mr-2" style={{ paddingLeft: `${level * 20}px` }}>
                                 {level > 0 && <CornerDownRight size={12} className="text-[#555] mr-1" />}
-                                {(row.children && row.children.length > 0) ? (
+                                {(row.children && row.children.length > 0) && (
                                     <button
                                         onClick={() => onToggleRow(row.id)}
-                                        className="p-0.5 rounded hover:bg-[#333] text-[#9b9b9b] hover:text-[#e3e3e3] transition-colors mr-1"
+                                        className="p-0.5 rounded hover:bg-[#333] text-[#9b9b9b] hover:text-[#e3e3e3] transition-colors"
                                     >
                                         {row.isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                     </button>
-                                ) : (
-                                    /* Placeholder for alignment */
-                                    <div className="w-[18px] mr-1" />
                                 )}
                             </div>
                         )}
