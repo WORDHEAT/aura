@@ -2,7 +2,7 @@ import { useState, useEffect, lazy, Suspense, useCallback } from 'react'
 import { TableSwitcher } from './components/TableSwitcher'
 import { Table } from './components/Table/Table'
 import { NoteEditor } from './components/NoteEditor'
-import { ExportImport } from './components/ExportImport'
+// ExportImport moved to sidebar
 import { SearchFilter } from './components/SearchFilter'
 import { NotificationService } from './services/NotificationService'
 import { TeamNotificationService } from './services/TeamNotificationService'
@@ -10,7 +10,7 @@ import type { TeamNotification } from './services/TeamNotificationService'
 import { useTableContext } from './context/TableContext'
 import { useAuth } from './context/AuthContext'
 import type { Row } from './components/Table/Table'
-import { LayoutList, LayoutTemplate, Settings, Undo2, Redo2, Plus, FolderPlus, FileText, Table2, Clock, Sparkles, Menu, X, Calendar, Trash2, Search, Bell } from 'lucide-react'
+import { Plus, FolderPlus, FileText, Table2, Clock, Sparkles, Menu, X, Trash2, Search, Bell, Settings, LayoutList, LayoutTemplate, Undo2, Redo2, Calendar } from 'lucide-react'
 import { useSettings } from './context/SettingsContext'
 import { UserMenu } from './components/Auth'
 import { LandingPage } from './components/LandingPage'
@@ -172,91 +172,32 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#191919] text-[#e3e3e3]">
-      {/* Header */}
-      <header className="sticky top-0 z-[100] bg-[#191919]/95 backdrop-blur-sm border-b border-[#373737] px-4 sm:px-6 py-3 sm:py-4">
-        <div className="flex items-center justify-between gap-3">
-          {/* Mobile menu button */}
+      {/* Header - Clean minimal design like Upbase */}
+      <header className="sticky top-0 z-[100] bg-[#191919] border-b border-[#2a2a2a] px-4 py-2">
+        <div className="flex items-center gap-4">
+          {/* Left: Hamburger only */}
           <button
-            onClick={() => setIsMobileDrawerOpen(true)}
-            className="lg:hidden p-2 -ml-2 text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] rounded-lg transition-colors"
-            title="Open menu"
+            onClick={() => {
+              if (window.innerWidth < 1024) {
+                setIsMobileDrawerOpen(true)
+              } else {
+                setIsSidebarCollapsed(!isSidebarCollapsed)
+              }
+            }}
+            className="p-1.5 text-[#9b9b9b] hover:text-[#e3e3e3] rounded transition-colors"
+            title={isSidebarCollapsed ? "Show workspaces" : "Hide workspaces"}
           >
-            <Menu size={22} />
+            <Menu size={20} />
           </button>
           
-          <div className="flex-1 lg:flex-none">
-            <h1 className="text-xl sm:text-2xl font-semibold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-              Aura
-            </h1>
-            <p className="text-[#9b9b9b] text-xs sm:text-sm mt-0.5 hidden sm:block">Your tables, your time.</p>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2">
-            {/* View Toggle - hidden on mobile */}
-            <div className="hidden sm:flex bg-[#2a2a2a] p-1 rounded-lg border border-[#373737]">
-              <button
-                onClick={() => setViewMode('single')}
-                className={`p-1.5 rounded-md transition-all ${viewMode === 'single' ? 'bg-[#373737] text-blue-400 shadow-sm' : 'text-[#6b6b6b] hover:text-[#e3e3e3]'}`}
-                title="Selected View"
-              >
-                <LayoutTemplate size={18} />
-              </button>
-              <button
-                onClick={() => setViewMode('all')}
-                className={`p-1.5 rounded-md transition-all ${viewMode === 'all' ? 'bg-[#373737] text-blue-400 shadow-sm' : 'text-[#6b6b6b] hover:text-[#e3e3e3]'}`}
-                title="All Workspaces"
-              >
-                <LayoutList size={18} />
-              </button>
-            </div>
-            {/* Undo/Redo */}
-            <div className="hidden sm:block w-px h-6 bg-[#373737] mx-1" />
-            <div className="flex items-center">
-              <button
-                onClick={undo}
-                disabled={!canUndo}
-                className={`p-2 rounded-lg transition-colors ${
-                  canUndo 
-                    ? 'text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] active:scale-95' 
-                    : 'text-[#4a4a4a] cursor-not-allowed'
-                }`}
-                title="Undo"
-              >
-                <Undo2 size={18} />
-              </button>
-              <button
-                onClick={redo}
-                disabled={!canRedo}
-                className={`p-2 rounded-lg transition-colors ${
-                  canRedo 
-                    ? 'text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] active:scale-95' 
-                    : 'text-[#4a4a4a] cursor-not-allowed'
-                }`}
-                title="Redo"
-              >
-                <Redo2 size={18} />
-              </button>
-            </div>
-            <div className="hidden sm:block w-px h-6 bg-[#373737] mx-1" />
+          {/* Right: Minimal icons */}
+          <div className="flex items-center gap-1 ml-auto">
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="p-1.5 sm:p-2 rounded-lg text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+              className="p-2 rounded text-[#6b6b6b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
               title="Search (Ctrl+K)"
             >
               <Search size={18} />
-            </button>
-            <button
-              onClick={() => setIsCalendarOpen(true)}
-              className="p-1.5 sm:p-2 rounded-lg text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
-              title="Calendar"
-            >
-              <Calendar size={18} />
-            </button>
-            <button
-              onClick={() => setIsTrashOpen(true)}
-              className="p-1.5 sm:p-2 rounded-lg text-[#9b9b9b] hover:text-red-400 hover:bg-red-500/10 transition-colors"
-              title="Trash"
-            >
-              <Trash2 size={18} />
             </button>
             {/* Team Notifications Bell */}
             {isAuthenticated && (
@@ -316,14 +257,6 @@ function App() {
                 )}
               </div>
             )}
-            <div className="hidden sm:flex items-center">
-              <div className="w-px h-6 bg-[#373737] mx-1" />
-              <ExportImport
-                data={{ columns: currentTable.columns, rows: currentTable.rows }}
-                onImport={(data) => updateTable(data)}
-              />
-            </div>
-            <div className="hidden sm:block w-px h-6 bg-[#373737] mx-1" />
             <UserMenu 
               onOpenSettings={() => setIsSettingsOpen(true)} 
               onOpenProfile={() => setIsProfileOpen(true)}
@@ -332,6 +265,70 @@ function App() {
           </div>
         </div>
       </header>
+
+      {/* Toolbar - Second row with actions */}
+      <div className="sticky top-[44px] z-[99] bg-[#191919] border-b border-[#2a2a2a] px-4 py-1.5">
+        <div className="flex items-center gap-1 justify-end">
+          {/* View Toggle */}
+          <div className="flex items-center bg-[#252525] rounded p-0.5">
+            <button
+              onClick={() => setViewMode('single')}
+              className={`px-2 py-1 rounded text-xs transition-all ${viewMode === 'single' ? 'bg-[#373737] text-blue-400' : 'text-[#6b6b6b] hover:text-[#e3e3e3]'}`}
+              title="Selected View"
+            >
+              <LayoutTemplate size={14} />
+            </button>
+            <button
+              onClick={() => setViewMode('all')}
+              className={`px-2 py-1 rounded text-xs transition-all ${viewMode === 'all' ? 'bg-[#373737] text-blue-400' : 'text-[#6b6b6b] hover:text-[#e3e3e3]'}`}
+              title="All Workspaces"
+            >
+              <LayoutList size={14} />
+            </button>
+          </div>
+
+          <div className="w-px h-5 bg-[#373737] mx-2" />
+
+          {/* Undo/Redo */}
+          <button
+            onClick={undo}
+            disabled={!canUndo}
+            className={`p-1.5 rounded transition-colors ${canUndo ? 'text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a]' : 'text-[#4a4a4a] cursor-not-allowed'}`}
+            title="Undo (Ctrl+Z)"
+          >
+            <Undo2 size={14} />
+          </button>
+          <button
+            onClick={redo}
+            disabled={!canRedo}
+            className={`p-1.5 rounded transition-colors ${canRedo ? 'text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a]' : 'text-[#4a4a4a] cursor-not-allowed'}`}
+            title="Redo (Ctrl+Y)"
+          >
+            <Redo2 size={14} />
+          </button>
+
+          <div className="w-px h-5 bg-[#373737] mx-2" />
+
+          {/* Calendar */}
+          <button
+            onClick={() => setIsCalendarOpen(true)}
+            className="p-1.5 rounded text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors"
+            title="Calendar"
+          >
+            <Calendar size={14} />
+          </button>
+
+          {/* Trash */}
+          <button
+            onClick={() => setIsTrashOpen(true)}
+            className="p-1.5 rounded text-[#9b9b9b] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            title="Trash"
+          >
+            <Trash2 size={14} />
+          </button>
+
+        </div>
+      </div>
 
       {/* Mobile Drawer */}
       {isMobileDrawerOpen && (
@@ -360,15 +357,19 @@ function App() {
       )}
 
       {/* Main Content */}
-      <div className="px-4 sm:px-6 py-4 sm:py-6">
+      <div className="px-4 sm:px-6 py-4">
         {/* Desktop: Grid layout with sidebar */}
-        <div className={`lg:grid gap-4 transition-all duration-300 ${isSidebarCollapsed ? 'lg:grid-cols-[60px_1fr]' : 'lg:grid-cols-[280px_1fr]'}`}>
-          {/* Sidebar - hidden on mobile, shown on desktop */}
-          <aside className="hidden lg:block lg:sticky lg:top-[88px]">
-            <SectionErrorBoundary name="Sidebar">
-              <TableSwitcher isCollapsed={isSidebarCollapsed} setIsCollapsed={setIsSidebarCollapsed} />
-            </SectionErrorBoundary>
-          </aside>
+        <div className={`lg:grid gap-4 transition-all duration-300 ${isSidebarCollapsed ? '' : 'lg:grid-cols-[260px_1fr]'}`}>
+          {/* Sidebar - hidden on mobile, toggleable on desktop */}
+          {!isSidebarCollapsed && (
+            <aside className="hidden lg:block lg:sticky lg:top-[80px] lg:h-[calc(100vh-96px)] animate-in slide-in-from-left duration-200">
+              <div className="bg-[#202020] border border-[#373737] rounded-xl h-full overflow-hidden">
+                <SectionErrorBoundary name="Sidebar">
+                  <TableSwitcher isCollapsed={false} setIsCollapsed={setIsSidebarCollapsed} />
+                </SectionErrorBoundary>
+              </div>
+            </aside>
+          )}
 
           {/* Main Content Area */}
           <main className="min-w-0">

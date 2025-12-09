@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback } from 'react'
-import { Plus, Check, X, LayoutGrid, ChevronDown, ChevronRight, Folder, FolderOpen, Table as TableIcon, Trash2, Copy, FileText, Settings, Users, Globe } from 'lucide-react'
+import { Plus, Check, X, ChevronDown, ChevronRight, Folder, FolderOpen, Table as TableIcon, Trash2, Copy, FileText, Settings, Users, Globe } from 'lucide-react'
 import { useTableContext, type Workspace, type TableItem, type NoteItem } from '../context/TableContext'
 import { useSettings } from '../context/SettingsContext'
 import { SyncIndicator } from './SyncIndicator'
+import { ExportImport } from './ExportImport'
 import { WorkspaceSettingsModal } from './WorkspaceSettingsModal'
 import {
     DndContext, 
@@ -504,12 +505,14 @@ interface TableSwitcherProps {
     onItemSelect?: () => void  // Called when an item is selected (for closing mobile drawer)
 }
 
-export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: TableSwitcherProps) {
+export function TableSwitcher({ isCollapsed: _isCollapsed, setIsCollapsed: _setIsCollapsed, onItemSelect }: TableSwitcherProps) {
     const { 
         workspaces, 
         currentTableId,
         currentNoteId,
         currentWorkspaceId,
+        currentTable,
+        updateTable,
         selectedTableIds, 
         switchTable, 
         createWorkspace,
@@ -1044,44 +1047,26 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: Tab
     }
 
     return (
-        <div className={`bg-[#202020] border border-[#373737] rounded-xl shadow-lg flex flex-col gap-4 h-full max-h-full lg:max-h-[calc(100vh-120px)] transition-all duration-300 ${isCollapsed ? 'p-2' : 'p-4'}`}>
-            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
-                <button 
-                    onClick={() => setIsCollapsed(!isCollapsed)}
-                    className={`flex items-center gap-2 text-[#e3e3e3] hover:text-blue-400 transition-colors group ${isCollapsed ? 'justify-center w-full' : ''}`}
-                    title={isCollapsed ? "Expand workspaces" : "Collapse workspaces"}
-                >
-                    {isCollapsed ? (
-                        <ChevronRight size={20} className="text-[#6b6b6b] group-hover:text-blue-400" />
-                    ) : (
-                        <>
-                            <ChevronDown size={16} className="text-[#6b6b6b] group-hover:text-blue-400" />
-                            <LayoutGrid size={18} className="text-blue-400" />
-                            <span className="text-sm font-medium">Workspaces</span>
-                        </>
-                    )}
-                </button>
-                {!isCollapsed && (
-                    <div className="flex items-center gap-1">
-                        <SyncIndicator />
-                        <button
-                            onClick={() => {
-                                setShowNewWorkspaceInput(true)
-                                setIsCollapsed(false)
-                            }}
-                            className="text-[#9b9b9b] hover:text-blue-400 transition-colors bg-[#2a2a2a] hover:bg-[#333] p-1.5 rounded-md"
-                            title="Create new workspace"
-                        >
-                            <Plus size={16} />
-                        </button>
-                    </div>
-                )}
+        <div className="flex flex-col h-full">
+            {/* Header */}
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#2a2a2a]">
+                <span className="text-xs font-medium text-[#6b6b6b] uppercase tracking-wider">Workspaces</span>
+                <div className="flex items-center gap-1">
+                    <SyncIndicator />
+                    <button
+                        onClick={() => setShowNewWorkspaceInput(true)}
+                        className="text-[#6b6b6b] hover:text-[#e3e3e3] transition-colors p-1 rounded hover:bg-[#2a2a2a]"
+                        title="Create new workspace"
+                    >
+                        <Plus size={14} />
+                    </button>
+                </div>
             </div>
 
-            {!isCollapsed && (
-                <>
-                    {showNewWorkspaceInput && (
-                        <div className="flex items-center gap-1 p-1 bg-[#191919] rounded-md border border-[#373737] animate-in fade-in slide-in-from-top-2 focus-within:border-blue-500">
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+                {showNewWorkspaceInput && (
+                    <div className="flex items-center gap-1 p-1 mb-2 bg-[#252525] rounded border border-[#373737] animate-in fade-in focus-within:border-blue-500">
                             <input
                                 type="text"
                                 value={newWorkspaceName}
@@ -1112,23 +1097,30 @@ export function TableSwitcher({ isCollapsed, setIsCollapsed, onItemSelect }: Tab
                         </div>
                     )}
 
-                    <div className="overflow-y-auto custom-scrollbar pr-1 flex-1 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <DndContext
-                            sensors={sensors}
-                            collisionDetection={pointerWithin}
-                            onDragStart={handleDragStart}
-                            onDragOver={handleDragOver}
-                            onDragEnd={handleGlobalDragEnd}
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={pointerWithin}
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
+                        onDragEnd={handleGlobalDragEnd}
+                    >
+                        <SortableContext
+                            items={workspaces.map(ws => `workspace-sortable-${ws.id}`)}
+                            strategy={verticalListSortingStrategy}
                         >
-                            <SortableContext
-                                items={workspaces.map(ws => `workspace-sortable-${ws.id}`)}
-                                strategy={verticalListSortingStrategy}
-                            >
-                                {workspaces.map(renderWorkspace)}
-                            </SortableContext>
-                        </DndContext>
-                    </div>
-                </>
+                            {workspaces.map(renderWorkspace)}
+                        </SortableContext>
+                    </DndContext>
+            </div>
+
+            {/* Footer - Export/Import */}
+            {currentTable && (
+                <div className="border-t border-[#2a2a2a] px-3 py-2">
+                    <ExportImport
+                        data={{ columns: currentTable.columns, rows: currentTable.rows }}
+                        onImport={(data) => updateTable(data)}
+                    />
+                </div>
             )}
 
             {/* Workspace Settings Modal */}
