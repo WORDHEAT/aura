@@ -174,7 +174,7 @@ function App() {
     <div className="min-h-screen bg-[#191919] text-[#e3e3e3]">
       {/* Header */}
       <header className="sticky top-0 z-[100] bg-[#191919]/95 backdrop-blur-sm border-b border-[#373737] px-4 sm:px-6 py-3 sm:py-4">
-        <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           {/* Mobile menu button */}
           <button
             onClick={() => setIsMobileDrawerOpen(true)}
@@ -360,7 +360,7 @@ function App() {
       )}
 
       {/* Main Content */}
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4 sm:py-6">
+      <div className="px-4 sm:px-6 py-4 sm:py-6">
         {/* Desktop: Grid layout with sidebar */}
         <div className={`lg:grid gap-4 transition-all duration-300 ${isSidebarCollapsed ? 'lg:grid-cols-[60px_1fr]' : 'lg:grid-cols-[280px_1fr]'}`}>
           {/* Sidebar - hidden on mobile, shown on desktop */}
