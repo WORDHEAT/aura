@@ -172,6 +172,22 @@ ipcMain.handle('add-to-dictionary', (_event, word: string) => {
     return true
 })
 
+// IPC handler to check for updates manually
+ipcMain.on('check-for-updates', () => {
+    if (app.isPackaged) {
+        log.info('Manual update check triggered')
+        autoUpdater.checkForUpdatesAndNotify()
+    } else {
+        log.info('Update check skipped (development mode)')
+        dialog.showMessageBox(win!, {
+            type: 'info',
+            title: 'Development Mode',
+            message: 'Update check is only available in the packaged app.',
+            buttons: ['OK']
+        })
+    }
+})
+
 app.whenReady().then(() => {
     // Enable spell checking at session level
     session.defaultSession.setSpellCheckerEnabled(true)
