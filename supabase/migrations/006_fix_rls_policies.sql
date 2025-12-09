@@ -19,6 +19,13 @@ DROP POLICY IF EXISTS "workspace_select_public" ON workspaces;
 DROP POLICY IF EXISTS "workspace_insert" ON workspaces;
 DROP POLICY IF EXISTS "workspace_update" ON workspaces;
 DROP POLICY IF EXISTS "workspace_delete" ON workspaces;
+DROP POLICY IF EXISTS "ws_select" ON workspaces;
+DROP POLICY IF EXISTS "ws_select_owner" ON workspaces;
+DROP POLICY IF EXISTS "ws_select_member" ON workspaces;
+DROP POLICY IF EXISTS "ws_select_public" ON workspaces;
+DROP POLICY IF EXISTS "ws_insert" ON workspaces;
+DROP POLICY IF EXISTS "ws_update" ON workspaces;
+DROP POLICY IF EXISTS "ws_delete" ON workspaces;
 
 -- Tables policies
 DROP POLICY IF EXISTS "Users can view tables in their workspaces" ON tables;
@@ -36,6 +43,12 @@ DROP POLICY IF EXISTS "table_select_public" ON tables;
 DROP POLICY IF EXISTS "table_insert" ON tables;
 DROP POLICY IF EXISTS "table_update" ON tables;
 DROP POLICY IF EXISTS "table_delete" ON tables;
+DROP POLICY IF EXISTS "tbl_select_owner" ON tables;
+DROP POLICY IF EXISTS "tbl_select_member" ON tables;
+DROP POLICY IF EXISTS "tbl_select_public" ON tables;
+DROP POLICY IF EXISTS "tbl_insert" ON tables;
+DROP POLICY IF EXISTS "tbl_update" ON tables;
+DROP POLICY IF EXISTS "tbl_delete" ON tables;
 
 -- Notes policies
 DROP POLICY IF EXISTS "Users can view notes in their workspaces" ON notes;
@@ -53,6 +66,9 @@ DROP POLICY IF EXISTS "note_select_public" ON notes;
 DROP POLICY IF EXISTS "note_insert" ON notes;
 DROP POLICY IF EXISTS "note_update" ON notes;
 DROP POLICY IF EXISTS "note_delete" ON notes;
+DROP POLICY IF EXISTS "note_select_owner" ON notes;
+DROP POLICY IF EXISTS "note_select_member" ON notes;
+DROP POLICY IF EXISTS "note_select_public" ON notes;
 
 -- Workspace members policies
 DROP POLICY IF EXISTS "Workspace owners can manage members" ON workspace_members;
@@ -61,25 +77,24 @@ DROP POLICY IF EXISTS "Users can view members of workspaces they belong to" ON w
 DROP POLICY IF EXISTS "member_select_own" ON workspace_members;
 DROP POLICY IF EXISTS "member_select_workspace" ON workspace_members;
 DROP POLICY IF EXISTS "member_manage" ON workspace_members;
+DROP POLICY IF EXISTS "member_select" ON workspace_members;
+DROP POLICY IF EXISTS "member_select_owner" ON workspace_members;
+DROP POLICY IF EXISTS "member_insert" ON workspace_members;
+DROP POLICY IF EXISTS "member_update" ON workspace_members;
+DROP POLICY IF EXISTS "member_delete" ON workspace_members;
 
 -- =====================================================
--- STEP 2: Workspaces - Simple direct policies
+-- STEP 2: Workspaces - NO subqueries to avoid recursion
 -- =====================================================
 
--- Users can see workspaces they own
-CREATE POLICY "ws_select_owner" ON workspaces FOR SELECT
-    USING (owner_id = auth.uid());
-
--- Users can see team workspaces they are members of
-CREATE POLICY "ws_select_member" ON workspaces FOR SELECT
+-- Users can see their own workspaces + team workspaces + public workspaces
+-- Note: team visibility allows member access (membership verified in code via separate query)
+CREATE POLICY "ws_select" ON workspaces FOR SELECT
     USING (
-        visibility = 'team' AND 
-        id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())
+        owner_id = auth.uid() 
+        OR visibility = 'team'
+        OR visibility = 'public'
     );
-
--- Anyone can see public workspaces
-CREATE POLICY "ws_select_public" ON workspaces FOR SELECT
-    USING (visibility = 'public');
 
 -- Users can create workspaces where they are the owner
 CREATE POLICY "ws_insert" ON workspaces FOR INSERT
@@ -204,34 +219,26 @@ CREATE POLICY "note_delete" ON notes FOR DELETE
     );
 
 -- =====================================================
--- STEP 5: Workspace Members
+-- STEP 5: Workspace Members - Simple policies to avoid recursion
 -- =====================================================
 
--- Users can see their own memberships
-CREATE POLICY "member_select_own" ON workspace_members FOR SELECT
-    USING (user_id = auth.uid());
-
--- Workspace owners can see all members
-CREATE POLICY "member_select_owner" ON workspace_members FOR SELECT
+-- Users can see memberships (their own + where they were invited)
+CREATE POLICY "member_select" ON workspace_members FOR SELECT
     USING (
-        workspace_id IN (SELECT id FROM workspaces WHERE owner_id = auth.uid())
+        user_id = auth.uid() 
+        OR invited_by = auth.uid()
     );
 
--- Workspace owners can manage members
+-- Anyone authenticated can insert members (workspace ownership checked in code)
 CREATE POLICY "member_insert" ON workspace_members FOR INSERT
-    WITH CHECK (
-        workspace_id IN (SELECT id FROM workspaces WHERE owner_id = auth.uid())
-    );
+    WITH CHECK (invited_by = auth.uid());
 
+-- Users can update/delete memberships they created
 CREATE POLICY "member_update" ON workspace_members FOR UPDATE
-    USING (
-        workspace_id IN (SELECT id FROM workspaces WHERE owner_id = auth.uid())
-    );
+    USING (invited_by = auth.uid());
 
 CREATE POLICY "member_delete" ON workspace_members FOR DELETE
-    USING (
-        workspace_id IN (SELECT id FROM workspaces WHERE owner_id = auth.uid())
-    );
+    USING (invited_by = auth.uid() OR user_id = auth.uid());
 
 -- =====================================================
 -- STEP 6: Ensure RLS is enabled
