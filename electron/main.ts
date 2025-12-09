@@ -72,6 +72,12 @@ function setupAutoUpdater() {
 
     autoUpdater.on('error', (err: Error) => {
         log.error('Update error:', err)
+        dialog.showMessageBox(win!, {
+            type: 'error',
+            title: 'Update Error',
+            message: `Failed to download update: ${err.message}\n\nPlease check your antivirus settings or download the update manually from GitHub.`,
+            buttons: ['OK']
+        })
     })
 }
 
