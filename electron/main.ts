@@ -43,11 +43,12 @@ function setupAutoUpdater() {
 
     autoUpdater.on('update-available', (info: { version: string }) => {
         log.info('Update available:', info.version)
+        log.info('Starting download...')
         isManualUpdateCheck = false
         dialog.showMessageBox(win!, {
             type: 'info',
             title: 'Update Available',
-            message: `A new version (${info.version}) is available. It will be downloaded in the background.`,
+            message: `A new version (${info.version}) is available. Downloading now...`,
             buttons: ['OK']
         })
     })
@@ -66,13 +67,21 @@ function setupAutoUpdater() {
         }
     })
 
-    autoUpdater.on('download-progress', (progressObj: { bytesPerSecond: number; percent: number }) => {
-        log.info(`Download speed: ${progressObj.bytesPerSecond} - Downloaded ${progressObj.percent}%`)
+    autoUpdater.on('download-progress', (progressObj: { bytesPerSecond: number; percent: number; transferred: number; total: number }) => {
+        const mbDownloaded = (progressObj.transferred / 1024 / 1024).toFixed(2)
+        const mbTotal = (progressObj.total / 1024 / 1024).toFixed(2)
+        log.info(`Downloading: ${mbDownloaded}MB / ${mbTotal}MB (${progressObj.percent.toFixed(1)}%)`)
+        
+        // Show progress in console for debugging
+        if (win) {
+            win.setProgressBar(progressObj.percent / 100)
+        }
     })
 
     autoUpdater.on('update-downloaded', (info: { version: string }) => {
         log.info('Update downloaded:', info.version)
         if (win) {
+            win.setProgressBar(-1) // Clear progress bar
             dialog.showMessageBox(win, {
                 type: 'info',
                 title: 'Update Ready',
@@ -91,12 +100,14 @@ function setupAutoUpdater() {
 
     autoUpdater.on('error', (err: Error) => {
         log.error('Update error:', err)
+        log.error('Error stack:', err.stack)
         isManualUpdateCheck = false
         if (win) {
+            win.setProgressBar(-1) // Clear progress bar
             dialog.showMessageBox(win, {
                 type: 'error',
                 title: 'Update Error',
-                message: `Failed to download update: ${err.message}\n\nPlease check your antivirus settings or download the update manually from GitHub.`,
+                message: `Failed to download update: ${err.message}\n\nCheck log file at:\n%USERPROFILE%\\AppData\\Roaming\\Aura\\logs\\main.log`,
                 buttons: ['OK']
             })
         }
