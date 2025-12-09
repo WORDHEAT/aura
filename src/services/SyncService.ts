@@ -306,11 +306,11 @@ export class SyncService {
         }
     }
 
-    // Create a table
+    // Create or update a table (upsert)
     async createTable(workspaceId: string, table: TableItem, position: number): Promise<void> {
         const { error } = await supabase
             .from('tables')
-            .insert({
+            .upsert({
                 id: table.id,
                 workspace_id: workspaceId,
                 name: table.name,
@@ -318,10 +318,10 @@ export class SyncService {
                 rows: table.rows as unknown,
                 appearance: table.appearance as unknown,
                 position
-            })
+            }, { onConflict: 'id' })
 
         if (error) {
-            console.error('Error creating table:', error)
+            console.error('Error upserting table:', error)
             throw error
         }
     }
@@ -383,11 +383,11 @@ export class SyncService {
         await Promise.all(updates)
     }
 
-    // Create a note
+    // Create or update a note (upsert)
     async createNote(workspaceId: string, note: NoteItem, position: number): Promise<void> {
         const { error } = await supabase
             .from('notes')
-            .insert({
+            .upsert({
                 id: note.id,
                 workspace_id: workspaceId,
                 name: note.name,
@@ -395,10 +395,10 @@ export class SyncService {
                 position,
                 is_monospace: note.isMonospace ?? false,
                 word_wrap: note.wordWrap ?? true
-            })
+            }, { onConflict: 'id' })
 
         if (error) {
-            console.error('Error creating note:', error)
+            console.error('Error upserting note:', error)
             throw error
         }
     }
