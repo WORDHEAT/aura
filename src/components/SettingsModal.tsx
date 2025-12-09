@@ -1,7 +1,22 @@
-import { X, LayoutTemplate, LayoutList, Bell, Maximize2, Minimize2, Grid, Rows, Type, Trash2, Eye, Edit3, FileText } from 'lucide-react'
+import { X, LayoutTemplate, LayoutList, Bell, Maximize2, Minimize2, Grid, Rows, Type, Trash2, Eye, Edit3, FileText, RefreshCw, Info } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useSettings } from '../context/SettingsContext'
 import { format } from 'date-fns'
+
+// App version - update this when releasing new versions
+const APP_VERSION = '1.2.2'
+
+// Check if running in Electron
+const isElectron = typeof window !== 'undefined' && window.navigator.userAgent.includes('Electron')
+
+// Extend Window interface for Electron IPC
+declare global {
+    interface Window {
+        electronAPI?: {
+            checkForUpdates?: () => void
+        }
+    }
+}
 
 interface SettingsModalProps {
     isOpen: boolean
@@ -313,6 +328,56 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     </button>
                                 ))}
                             </div>
+                        </div>
+                    </div>
+
+                    {/* About Section */}
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-medium text-[#6b6b6b] uppercase tracking-wider">About</h3>
+                        
+                        <div className="px-3 py-3 bg-[#252525] border border-[#373737] rounded-lg space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <Info size={18} className="text-blue-400" />
+                                    <div className="flex flex-col">
+                                        <span className="text-sm text-[#e3e3e3]">Version</span>
+                                        <span className="text-xs text-[#6b6b6b]">Current installed version</span>
+                                    </div>
+                                </div>
+                                <span className="text-sm font-mono text-blue-400 bg-blue-500/10 px-2 py-1 rounded">
+                                    v{APP_VERSION}
+                                </span>
+                            </div>
+                            
+                            {isElectron && (
+                                <button
+                                    onClick={() => {
+                                        // Trigger update check via IPC if available
+                                        if (window.electronAPI?.checkForUpdates) {
+                                            window.electronAPI.checkForUpdates()
+                                        } else {
+                                            // Fallback: reload to trigger update check
+                                            window.location.reload()
+                                        }
+                                    }}
+                                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 rounded-lg text-sm transition-colors"
+                                >
+                                    <RefreshCw size={14} />
+                                    Check for Updates
+                                </button>
+                            )}
+                            
+                            {!isElectron && (
+                                <a
+                                    href="https://github.com/WORDHEAT/aura/releases"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#2a2a2a] hover:bg-[#333] border border-[#373737] text-[#9b9b9b] hover:text-[#e3e3e3] rounded-lg text-sm transition-colors"
+                                >
+                                    <RefreshCw size={14} />
+                                    View Releases on GitHub
+                                </a>
+                            )}
                         </div>
                     </div>
                 </div>

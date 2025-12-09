@@ -16,5 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     removeSpellCheckListener: () => {
         ipcRenderer.removeAllListeners('spell-check-context')
-    }
+    },
+    // Update APIs
+    checkForUpdates: () => ipcRenderer.send('check-for-updates')
 })
