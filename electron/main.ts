@@ -23,6 +23,9 @@ const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 autoUpdater.autoDownload = true
 autoUpdater.autoInstallOnAppQuit = true
 
+// Track if update check was triggered manually
+let isManualUpdateCheck = false
+
 function setupAutoUpdater() {
     // Check for updates on startup (only in production)
     if (app.isPackaged) {
@@ -40,6 +43,7 @@ function setupAutoUpdater() {
 
     autoUpdater.on('update-available', (info: { version: string }) => {
         log.info('Update available:', info.version)
+        isManualUpdateCheck = false
         dialog.showMessageBox(win!, {
             type: 'info',
             title: 'Update Available',
@@ -50,6 +54,16 @@ function setupAutoUpdater() {
 
     autoUpdater.on('update-not-available', () => {
         log.info('Update not available.')
+        // Only show dialog if this was a manual check
+        if (isManualUpdateCheck) {
+            dialog.showMessageBox(win!, {
+                type: 'info',
+                title: 'No Updates Available',
+                message: 'You are using the latest version.',
+                buttons: ['OK']
+            })
+            isManualUpdateCheck = false
+        }
     })
 
     autoUpdater.on('download-progress', (progressObj: { bytesPerSecond: number; percent: number }) => {
@@ -72,6 +86,7 @@ function setupAutoUpdater() {
 
     autoUpdater.on('error', (err: Error) => {
         log.error('Update error:', err)
+        isManualUpdateCheck = false
         dialog.showMessageBox(win!, {
             type: 'error',
             title: 'Update Error',
@@ -176,6 +191,13 @@ ipcMain.handle('add-to-dictionary', (_event, word: string) => {
 ipcMain.on('check-for-updates', () => {
     if (app.isPackaged) {
         log.info('Manual update check triggered')
+        isManualUpdateCheck = true
+        dialog.showMessageBox(win!, {
+            type: 'info',
+            title: 'Checking for Updates',
+            message: 'Checking for updates...',
+            buttons: ['OK']
+        })
         autoUpdater.checkForUpdatesAndNotify()
     } else {
         log.info('Update check skipped (development mode)')
