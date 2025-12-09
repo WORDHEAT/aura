@@ -436,6 +436,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             }
             
             // STEP 1: Sync all workspaces FIRST (they must exist before tables/notes)
+            const successfulWorkspaces = new Set<string>()
             const workspacePromises: Promise<void>[] = []
             
             for (const workspace of workspacesToPush) {
@@ -446,22 +447,39 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 if (isOwner) {
                     workspacePromises.push(
                         syncService.updateWorkspace(workspace, wsIndex)
+                            .then(() => {
+                                successfulWorkspaces.add(workspace.id)
+                            })
                             .catch(() => syncService.createWorkspace(workspace, wsIndex))
+                            .then(() => {
+                                successfulWorkspaces.add(workspace.id)
+                            })
                             .catch(err => {
                                 console.error('❌ Workspace sync failed:', workspace.id, err)
                                 hasErrors = true
                             })
                     )
+                } else {
+                    // Not owner but workspace exists in cloud - mark as successful for content sync
+                    successfulWorkspaces.add(workspace.id)
                 }
             }
             
             // Wait for all workspaces to be created/updated
             await Promise.all(workspacePromises)
             
-            // STEP 2: Now sync tables and notes (workspace exists now)
+            console.log(`✅ Synced ${successfulWorkspaces.size}/${workspacesToPush.length} workspaces`)
+            
+            // STEP 2: Only sync tables/notes for successfully synced workspaces
             const contentPromises: Promise<void>[] = []
             
             for (const workspace of workspacesToPush) {
+                // Skip if workspace didn't sync successfully
+                if (!successfulWorkspaces.has(workspace.id)) {
+                    console.warn(`⏭️ Skipping content sync for failed workspace: ${workspace.id}`)
+                    continue
+                }
+                
                 // Update tables in parallel
                 for (let i = 0; i < workspace.tables.length; i++) {
                     contentPromises.push(upsertTable(workspace.id, workspace.tables[i], i))
