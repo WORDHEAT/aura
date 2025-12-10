@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { logger } from '../lib/logger'
 
 /**
  * Service to send Telegram notifications for reminders
@@ -25,7 +26,7 @@ export class TelegramService {
                 .single()
 
             if (!profile?.telegram_chat_id) {
-                console.log('No Telegram chat ID configured for user')
+                logger.log('No Telegram chat ID configured for user')
                 return false
             }
 
@@ -44,7 +45,7 @@ export class TelegramService {
                 return false
             }
 
-            console.log('✅ Telegram notification sent successfully')
+            logger.log('✅ Telegram notification sent successfully')
             return true
         } catch (err) {
             console.error('Error sending Telegram notification:', err)

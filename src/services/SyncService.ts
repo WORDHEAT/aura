@@ -1,6 +1,8 @@
 import { supabase } from '../lib/supabase'
 import type { Workspace, TableItem, NoteItem } from '../context/TableContext'
 import type { WorkspaceVisibility, WorkspaceMemberRole } from '../lib/database.types'
+import type { Column, Row } from '../components/Table/Table'
+import { logger } from '../lib/logger'
 
 export interface CloudWorkspace {
     id: string
@@ -17,9 +19,9 @@ export interface CloudTable {
     id: string
     workspace_id: string
     name: string
-    columns: unknown
-    rows: unknown
-    appearance: unknown
+    columns: Column[]
+    rows: Row[]
+    appearance: TableItem['appearance']
     position: number
     created_at: string
     updated_at: string
@@ -347,7 +349,7 @@ export class SyncService {
         
         // If no rows were updated, the table doesn't exist - throw to trigger creation
         if (!data || data.length === 0) {
-            console.log('📋 Table not found in cloud, will be created')
+            logger.log('📋 Table not found in cloud, will be created')
             throw new Error('Table not found')
         }
         
@@ -425,7 +427,7 @@ export class SyncService {
         
         // If no rows were updated, the note doesn't exist - need to create it
         if (!data || data.length === 0) {
-            console.log('📝 Note not found in cloud, will be created on next full sync')
+            logger.log('📝 Note not found in cloud, will be created on next full sync')
             // Throw to trigger creation in the calling code
             throw new Error('Note not found')
         }

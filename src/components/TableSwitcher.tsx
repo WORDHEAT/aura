@@ -500,12 +500,10 @@ function SortableNoteRow({
 }
 
 interface TableSwitcherProps {
-    isCollapsed: boolean
-    setIsCollapsed: (collapsed: boolean) => void
     onItemSelect?: () => void  // Called when an item is selected (for closing mobile drawer)
 }
 
-export function TableSwitcher({ isCollapsed: _isCollapsed, setIsCollapsed: _setIsCollapsed, onItemSelect }: TableSwitcherProps) {
+export function TableSwitcher({ onItemSelect }: TableSwitcherProps) {
     const { 
         workspaces, 
         currentTableId,

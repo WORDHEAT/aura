@@ -1,5 +1,6 @@
 import { supabase, getCurrentUser } from '../lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
+import { logger } from '../lib/logger'
 
 export interface TeamReminder {
     id: string
@@ -209,7 +210,7 @@ class TeamNotificationServiceClass {
             )
             .subscribe()
 
-        console.log('Subscribed to team notifications')
+        logger.log('Subscribed to team notifications')
     }
 
     // Unsubscribe from realtime notifications

@@ -76,7 +76,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             >
                                 <span
                                     className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                                        settings.compactMode ? 'translate-x-4.5' : 'translate-x-1'
+                                        settings.compactMode ? 'translate-x-[18px]' : 'translate-x-1'
                                     }`}
                                 />
                             </button>
@@ -98,7 +98,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             >
                                 <span
                                     className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                                        settings.showGridLines ? 'translate-x-4.5' : 'translate-x-1'
+                                        settings.showGridLines ? 'translate-x-[18px]' : 'translate-x-1'
                                     }`}
                                 />
                             </button>
@@ -120,7 +120,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             >
                                 <span
                                     className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                                        settings.zebraStriping ? 'translate-x-4.5' : 'translate-x-1'
+                                        settings.zebraStriping ? 'translate-x-[18px]' : 'translate-x-1'
                                     }`}
                                 />
                             </button>
@@ -175,7 +175,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             >
                                 <span
                                     className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                                        settings.enableNotifications ? 'translate-x-4.5' : 'translate-x-1'
+                                        settings.enableNotifications ? 'translate-x-[18px]' : 'translate-x-1'
                                     }`}
                                 />
                             </button>
@@ -197,7 +197,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             >
                                 <span
                                     className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                                        settings.confirmBeforeDelete ? 'translate-x-4.5' : 'translate-x-1'
+                                        settings.confirmBeforeDelete ? 'translate-x-[18px]' : 'translate-x-1'
                                     }`}
                                 />
                             </button>
