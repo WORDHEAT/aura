@@ -3,6 +3,7 @@ import type { Column, Row } from '../components/Table/Table'
 import { useAuth } from './AuthContext'
 import { syncService } from '../services/SyncService'
 import { updateRowInTree, deleteRowFromTree, addSiblingToTree, addChildToRowInTree } from '../utils/treeUtils'
+import { logger } from '../lib/logger'
 
 // Pending operation for offline queue
 interface PendingOperation {
@@ -287,7 +288,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             const currentWorkspaces = workspacesRef.current
             
             if (cloudWorkspaces.length > 0) {
-                console.log('📥 Loaded', cloudWorkspaces.length, 'workspaces from cloud')
+                logger.log('📥 Loaded', cloudWorkspaces.length, 'workspaces from cloud')
                 
                 // Preserve local expansion state only
                 const finalWorkspaces = cloudWorkspaces.map(cloudWs => {
@@ -309,10 +310,10 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                         setCurrentTableId(finalWorkspaces[0].tables[0].id)
                     }
                 }
-                console.log('✅ Sync complete:', finalWorkspaces.length, 'workspaces')
+                logger.log('✅ Sync complete:', finalWorkspaces.length, 'workspaces')
             } else {
                 // Cloud is empty - push current local data to cloud
-                console.log('☁️ Cloud is empty, pushing local data...')
+                logger.log('☁️ Cloud is empty, pushing local data...')
                 for (let wsIndex = 0; wsIndex < currentWorkspaces.length; wsIndex++) {
                     const workspace = currentWorkspaces[wsIndex]
                     try {
@@ -329,7 +330,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                         console.error('Error pushing workspace to cloud:', err)
                     }
                 }
-                console.log('✅ Pushed local data to cloud')
+                logger.log('✅ Pushed local data to cloud')
             }
         } catch (error) {
             console.error('Sync error:', error)
@@ -370,10 +371,10 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 
                 // Only push if pending sync belongs to current user
                 if (pendingUserId === user.id) {
-                    console.log('📤 Found pending sync from previous session, pushing first...')
+                    logger.log('📤 Found pending sync from previous session, pushing first...')
                     pushToCloud(pendingWorkspaces).then(() => {
                         localStorage.removeItem('aura-pending-sync')
-                        console.log('✅ Pending sync completed')
+                        logger.log('✅ Pending sync completed')
                         initialSyncDoneRef.current = true
                     }).catch(err => {
                         console.error('Failed to push pending sync:', err)
@@ -382,7 +383,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     })
                 } else {
                     // Pending sync belongs to different user - discard it
-                    console.log('🗑️ Discarding pending sync from different user')
+                    logger.log('🗑️ Discarding pending sync from different user')
                     localStorage.removeItem('aura-pending-sync')
                     syncWorkspaces()
                 }
@@ -449,13 +450,13 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                         // Try update first
                         await syncService.updateWorkspace(workspace, wsIndex)
                         successfulWorkspaces.add(workspace.id)
-                        console.log(`✅ Workspace updated: ${workspace.id}`)
+                        logger.log(`✅ Workspace updated: ${workspace.id}`)
                     } catch {
                         // Update failed, try create
                         try {
                             await syncService.createWorkspace(workspace, wsIndex)
                             successfulWorkspaces.add(workspace.id)
-                            console.log(`✅ Workspace created: ${workspace.id}`)
+                            logger.log(`✅ Workspace created: ${workspace.id}`)
                         } catch (err) {
                             console.error('❌ Workspace sync failed:', workspace.id, err)
                             hasErrors = true
@@ -466,7 +467,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 // They should already exist in cloud if user is a member
             }
             
-            console.log(`✅ Synced ${successfulWorkspaces.size}/${workspacesToPush.length} workspaces`)
+            logger.log(`✅ Synced ${successfulWorkspaces.size}/${workspacesToPush.length} workspaces`)
             
             // STEP 2: Only sync tables/notes for successfully synced workspaces
             const contentPromises: Promise<void>[] = []
@@ -500,13 +501,13 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     try {
                         if (op.entityType === 'workspace') {
                             await syncService.deleteWorkspace(op.entityId)
-                            console.log('🗑️ Deleted workspace from cloud:', op.entityId)
+                            logger.log('🗑️ Deleted workspace from cloud:', op.entityId)
                         } else if (op.entityType === 'table') {
                             await syncService.deleteTable(op.entityId)
-                            console.log('🗑️ Deleted table from cloud:', op.entityId)
+                            logger.log('🗑️ Deleted table from cloud:', op.entityId)
                         } else if (op.entityType === 'note') {
                             await syncService.deleteNote(op.entityId)
-                            console.log('🗑️ Deleted note from cloud:', op.entityId)
+                            logger.log('🗑️ Deleted note from cloud:', op.entityId)
                         }
                         successfulDeletes.push(op.id)
                     } catch (err) {
@@ -528,7 +529,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 console.warn('⚠️ Push completed with some errors')
                 setSyncError('Some items failed to sync')
             } else {
-                console.log('✅ Push complete')
+                logger.log('✅ Push complete')
                 setSyncError(null)
             }
             
@@ -569,7 +570,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
 
         syncTimeoutRef.current = setTimeout(async () => {
             const latestWorkspaces = workspacesRef.current
-            console.log('⚡ Pushing changes to cloud...')
+            logger.log('⚡ Pushing changes to cloud...')
             await pushToCloud(latestWorkspaces)
         }, 500)
 
@@ -591,7 +592,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     userId: user.id
                 })
                 localStorage.setItem('aura-pending-sync', workspacesData)
-                console.log('💾 Saved pending changes for next session')
+                logger.log('💾 Saved pending changes for next session')
             }
         }
         
@@ -952,7 +953,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         if (isAuthenticated) {
             try {
                 await syncService.moveTable(tableId, toWorkspaceId)
-                console.log('✅ Table moved and synced:', tableId, '→', toWorkspaceId)
+                logger.log('✅ Table moved and synced:', tableId, '→', toWorkspaceId)
             } catch (error) {
                 console.error('Failed to sync table move:', error)
                 // Could rollback here, but for now just log
@@ -1264,7 +1265,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         if (isAuthenticated) {
             try {
                 await syncService.moveNote(noteId, toWorkspaceId)
-                console.log('✅ Note moved and synced:', noteId, '→', toWorkspaceId)
+                logger.log('✅ Note moved and synced:', noteId, '→', toWorkspaceId)
             } catch (error) {
                 console.error('Failed to sync note move:', error)
                 // Could rollback here, but for now just log

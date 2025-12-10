@@ -350,7 +350,7 @@ function App() {
               </button>
             </div>
             <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
-              <TableSwitcher isCollapsed={false} setIsCollapsed={() => {}} onItemSelect={() => setIsMobileDrawerOpen(false)} />
+              <TableSwitcher onItemSelect={() => setIsMobileDrawerOpen(false)} />
             </div>
           </div>
         </div>
@@ -365,7 +365,7 @@ function App() {
             <aside className="hidden lg:block lg:sticky lg:top-[80px] lg:h-[calc(100vh-96px)] animate-in slide-in-from-left duration-200">
               <div className="bg-[#202020] border border-[#373737] rounded-xl h-full overflow-hidden">
                 <SectionErrorBoundary name="Sidebar">
-                  <TableSwitcher isCollapsed={false} setIsCollapsed={setIsSidebarCollapsed} />
+                  <TableSwitcher />
                 </SectionErrorBoundary>
               </div>
             </aside>

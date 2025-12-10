@@ -1106,17 +1106,31 @@ export function NoteEditor({ note }: NoteEditorProps) {
                                         const isUnchecked = text.startsWith('☐') || text.includes('[ ]')
                                         
                                         if (isChecked || isUnchecked) {
+                                            // Extract the clean text for matching the specific checkbox
+                                            const cleanText = text.replace(/^\[[ xX]\]\s*/, '').replace(/^[☑☐]\s*/, '').trim()
+                                            
                                             return (
                                                 <li className="list-none flex items-start gap-2" {...props}>
                                                     <input 
                                                         type="checkbox" 
                                                         checked={isChecked}
                                                         onChange={() => {
-                                                            // Toggle checkbox in content (use updateContent for undo history)
-                                                            const newContent = isChecked 
-                                                                ? content.replace(/\[x\]/gi, '[ ]').replace('☑', '☐')
-                                                                : content.replace('[ ]', '[x]').replace('☐', '☑')
-                                                            updateContent(newContent)
+                                                            // Toggle only THIS specific checkbox by matching its text content
+                                                            const lines = content.split('\n')
+                                                            const newLines = lines.map(line => {
+                                                                // Check if this line contains our checkbox text
+                                                                const lineCleanText = line.replace(/^[\s-*]*\[[ xX]\]\s*/, '').replace(/^[\s-*]*[☑☐]\s*/, '').trim()
+                                                                if (lineCleanText === cleanText) {
+                                                                    // Toggle this specific checkbox
+                                                                    if (isChecked) {
+                                                                        return line.replace(/\[x\]/gi, '[ ]').replace('☑', '☐')
+                                                                    } else {
+                                                                        return line.replace('[ ]', '[x]').replace('☐', '☑')
+                                                                    }
+                                                                }
+                                                                return line
+                                                            })
+                                                            updateContent(newLines.join('\n'))
                                                         }}
                                                         className="mt-1 w-4 h-4 rounded border-[#373737] bg-[#2a2a2a] checked:bg-blue-500 cursor-pointer"
                                                     />

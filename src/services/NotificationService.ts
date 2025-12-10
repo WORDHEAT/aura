@@ -1,4 +1,5 @@
 import { TelegramService } from './TelegramService'
+import { logger } from '../lib/logger'
 
 const REMINDERS_KEY = 'aura-scheduled-reminders'
 
@@ -75,7 +76,7 @@ export const NotificationService = {
                 tableName: options?.tableName,
                 userId: options?.userId
             })
-            console.log(`Reminder scheduled for ${time.toLocaleTimeString()}`)
+            logger.log(`Reminder scheduled for ${time.toLocaleTimeString()}`)
             return reminderId
         }
         return null
