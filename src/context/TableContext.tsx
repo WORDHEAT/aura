@@ -904,7 +904,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             notes: [],
             profileWorkspaceId: currentProfileWorkspaceId // Assign to current profile
         }
-        setWorkspacesWithHistory([...workspaces, newWorkspace])
+        setWorkspacesWithHistory(prev => [...prev, newWorkspace])
         setCurrentWorkspaceId(newWorkspace.id)
     }
 
@@ -925,42 +925,50 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             setPendingOpsCount(getPendingOps().length)
         }
         
-        const newWorkspaces = workspaces.filter(w => w.id !== id)
-        setWorkspacesWithHistory(newWorkspaces)
-        
-        // If current workspace was deleted, switch to first available in same profile
-        if (currentWorkspaceId === id) {
-            const remainingInProfile = newWorkspaces.filter(ws => 
-                ws.profileWorkspaceId === currentProfileWorkspaceId
-            )
-            const nextWs = remainingInProfile[0]
-            if (nextWs) {
-                setCurrentWorkspaceId(nextWs.id)
-                setCurrentTableId(nextWs.tables[0]?.id || '')
-                setSelectedTables([nextWs.tables[0]?.id || ''])
+        setWorkspacesWithHistory(prev => {
+            const newWorkspaces = prev.filter(w => w.id !== id)
+            
+            // If current workspace was deleted, switch to first available in same profile
+            if (currentWorkspaceId === id) {
+                const remainingInProfile = newWorkspaces.filter(ws => 
+                    ws.profileWorkspaceId === currentProfileWorkspaceId
+                )
+                const nextWs = remainingInProfile[0]
+                if (nextWs) {
+                    // Use setTimeout to avoid state update during render
+                    setTimeout(() => {
+                        setCurrentWorkspaceId(nextWs.id)
+                        setCurrentTableId(nextWs.tables[0]?.id || '')
+                        setSelectedTables([nextWs.tables[0]?.id || ''])
+                    }, 0)
+                }
             }
-        }
+            
+            return newWorkspaces
+        })
     }
 
     const renameWorkspace = (id: string, name: string) => {
         if (!name.trim()) return
-        setWorkspacesWithHistory(workspaces.map(w =>
+        setWorkspacesWithHistory(prev => prev.map(w =>
             w.id === id ? { ...w, name: name.trim() } : w
         ))
     }
 
     const toggleWorkspaceExpanded = (id: string) => {
-        setWorkspaces(workspaces.map(w =>
+        setWorkspaces(prev => prev.map(w =>
             w.id === id ? { ...w, isExpanded: !w.isExpanded } : w
         ))
     }
 
     const reorderWorkspaces = (reorderedWorkspaces: Workspace[]) => {
         // Preserve workspaces from other profiles, only reorder current profile's workspaces
-        const otherProfileWorkspaces = workspaces.filter(ws => 
-            ws.profileWorkspaceId !== currentProfileWorkspaceId
-        )
-        setWorkspacesWithHistory([...reorderedWorkspaces, ...otherProfileWorkspaces])
+        setWorkspacesWithHistory(prev => {
+            const otherProfileWorkspaces = prev.filter(ws => 
+                ws.profileWorkspaceId !== currentProfileWorkspaceId
+            )
+            return [...reorderedWorkspaces, ...otherProfileWorkspaces]
+        })
     }
 
     // ===== TABLE OPERATIONS WITHIN WORKSPACE =====
@@ -971,7 +979,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             columns: [{ id: crypto.randomUUID(), title: 'Column 1', type: 'text' }],
             rows: [],
         }
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? { ...ws, tables: [...ws.tables, newTable], isExpanded: true }
                 : ws
@@ -1030,7 +1038,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             rows: sourceTable.rows.map(cloneRow),
         }
 
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? { ...ws, tables: [...ws.tables, duplicatedTable], isExpanded: true }
                 : ws
@@ -1045,7 +1053,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         if (!workspace) return
         
         // Archive instead of delete (soft delete)
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId 
                 ? { 
                     ...ws, 
@@ -1086,7 +1094,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     }
 
     const reorderTablesInWorkspace = (workspaceId: string, tableIds: string[]) => {
-        setWorkspacesWithHistory(workspaces.map(ws => {
+        setWorkspacesWithHistory(prev => prev.map(ws => {
             if (ws.id !== workspaceId) return ws
             // Reorder tables based on new order of IDs
             const reorderedTables = tableIds
@@ -1303,7 +1311,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             isMonospace: false,
             wordWrap: true,
         }
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? { ...ws, notes: [...ws.notes, newNote], isExpanded: true }
                 : ws
@@ -1328,7 +1336,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             updatedAt: now,
         }
 
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? { ...ws, notes: [...ws.notes, duplicatedNote], isExpanded: true }
                 : ws
@@ -1343,7 +1351,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         if (!workspace) return
         
         // Archive instead of delete (soft delete)
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? { 
                     ...ws, 
@@ -1399,7 +1407,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     }
 
     const reorderNotesInWorkspace = (workspaceId: string, noteIds: string[]) => {
-        setWorkspacesWithHistory(workspaces.map(ws => {
+        setWorkspacesWithHistory(prev => prev.map(ws => {
             if (ws.id !== workspaceId) return ws
             const reorderedNotes = noteIds
                 .map(id => ws.notes.find(n => n.id === id))
@@ -1473,7 +1481,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const getArchivedItems = useCallback(() => archivedItemsCache, [archivedItemsCache])
 
     const restoreTable = (workspaceId: string, tableId: string) => {
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? {
                     ...ws,
@@ -1488,7 +1496,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     }
 
     const restoreNote = (workspaceId: string, noteId: string) => {
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? {
                     ...ws,
@@ -1507,7 +1515,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         addPendingDelete('table', tableId, workspaceId)
         setPendingOpsCount(getPendingOps().length)
         
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? { ...ws, tables: ws.tables.filter(t => t.id !== tableId) }
                 : ws
@@ -1519,7 +1527,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         addPendingDelete('note', noteId, workspaceId)
         setPendingOpsCount(getPendingOps().length)
         
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? { ...ws, notes: ws.notes.filter(n => n.id !== noteId) }
                 : ws
@@ -1539,7 +1547,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         setPendingOpsCount(getPendingOps().length)
         
         // Remove all archived items
-        setWorkspacesWithHistory(workspaces.map(ws => ({
+        setWorkspacesWithHistory(prev => prev.map(ws => ({
             ...ws,
             tables: ws.tables.filter(t => !t.isArchived),
             notes: ws.notes.filter(n => !n.isArchived)

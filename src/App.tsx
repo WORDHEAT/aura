@@ -28,7 +28,7 @@ const SearchCommand = lazy(() => import('./components/SearchCommand').then(m => 
 
 function App() {
   const { settings } = useSettings()
-  const { workspaces, currentTable, currentNote, currentItemType, selectedTableIds, updateTable, updateTableById, undo, redo, canUndo, canRedo, createWorkspace, createTable, createNote, currentWorkspaceId, getTableById } = useTableContext()
+  const { workspaces, currentTable, currentNote, currentItemType, selectedTableIds, updateTable, updateTableById, undo, redo, canUndo, canRedo, createWorkspace, createTable, createNote, currentWorkspaceId, getTableById, getNoteById } = useTableContext()
   const { isAuthenticated, signIn, signUp, signInWithGoogle, signInWithGithub } = useAuth()
   const [hasSkippedLanding, setHasSkippedLanding] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
@@ -349,7 +349,9 @@ function App() {
                       <button
                         onClick={() => {
                           if (workspaces.length > 0) {
-                            createTable(currentWorkspaceId, `Table ${workspaces.find(w => w.id === currentWorkspaceId)?.tables.length ? workspaces.find(w => w.id === currentWorkspaceId)!.tables.length + 1 : 1}`)
+                            const currentWs = workspaces.find(w => w.id === currentWorkspaceId)
+                            const tableCount = currentWs?.tables.filter(t => !t.isArchived).length || 0
+                            createTable(currentWorkspaceId, `Table ${tableCount + 1}`)
                           }
                         }}
                         className="flex items-center gap-3 p-4 bg-[#252525] hover:bg-[#2a2a2a] rounded-xl border border-[#373737] hover:border-blue-500/50 transition-all group"
@@ -365,7 +367,9 @@ function App() {
                       <button
                         onClick={() => {
                           if (workspaces.length > 0) {
-                            createNote(currentWorkspaceId, `Note ${workspaces.find(w => w.id === currentWorkspaceId)?.notes.length ? workspaces.find(w => w.id === currentWorkspaceId)!.notes.length + 1 : 1}`)
+                            const currentWs = workspaces.find(w => w.id === currentWorkspaceId)
+                            const noteCount = currentWs?.notes.filter(n => !n.isArchived).length || 0
+                            createNote(currentWorkspaceId, `Note ${noteCount + 1}`)
                           }
                         }}
                         className="flex items-center gap-3 p-4 bg-[#252525] hover:bg-[#2a2a2a] rounded-xl border border-[#373737] hover:border-green-500/50 transition-all group"
@@ -408,18 +412,28 @@ function App() {
               ) : showMultiView ? (
                 /* Multi-select view */
                 <div className="space-y-4">
-                  {selectedTableIds.map(tableId => {
-                    const table = getTableById(tableId)
-                    if (!table) return null
-                    return (
-                      <div key={tableId} className="bg-[#202020] border border-[#373737] rounded-xl overflow-hidden">
-                        <Table
-                          tableId={table.id}
-                          data={{ columns: table.columns, rows: table.rows }}
-                          onUpdate={(data) => updateTableById(table.id, data)}
-                        />
-                      </div>
-                    )
+                  {selectedTableIds.map(itemId => {
+                    const table = getTableById(itemId)
+                    if (table) {
+                      return (
+                        <div key={itemId} className="bg-[#202020] border border-[#373737] rounded-xl overflow-hidden">
+                          <Table
+                            tableId={table.id}
+                            data={{ columns: table.columns, rows: table.rows }}
+                            onUpdate={(data) => updateTableById(table.id, data)}
+                          />
+                        </div>
+                      )
+                    }
+                    const note = getNoteById(itemId)
+                    if (note) {
+                      return (
+                        <div key={itemId} className="bg-[#202020] border border-[#373737] rounded-xl overflow-hidden">
+                          <NoteEditor note={note} />
+                        </div>
+                      )
+                    }
+                    return null
                   })}
                 </div>
               ) : (
