@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback } from 'react'
-import { Plus, Check, X, ChevronDown, ChevronRight, Folder, FolderOpen, Table as TableIcon, Trash2, Copy, FileText, Settings, Users, Globe } from 'lucide-react'
+import { Plus, Check, X, ChevronDown, ChevronRight, Folder, FolderOpen, Table as TableIcon, Trash2, Copy, FileText, Users, Globe } from 'lucide-react'
 import { useTableContext, type Workspace, type TableItem, type NoteItem } from '../context/TableContext'
 import { useSettings } from '../context/SettingsContext'
 import { SyncIndicator } from './SyncIndicator'
 import { ExportImport } from './ExportImport'
 import { WorkspaceSettingsModal } from './WorkspaceSettingsModal'
+import { WorkspaceContextMenu } from './WorkspaceContextMenu'
 import {
     DndContext, 
     pointerWithin,
@@ -190,13 +191,13 @@ function SortableTableRow({
                 onTouchMove={cancelLongPress}
                 className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all group cursor-grab active:cursor-grabbing select-none ${
                     selectedTableIds.includes(table.id)
-                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                        ? 'bg-blue-500/30 text-blue-300 border border-blue-500/40'
                         : currentTableId === table.id
-                            ? 'bg-[#333] text-[#e3e3e3]'
+                            ? 'bg-teal-600/80 text-white'
                             : 'text-[#9b9b9b] hover:bg-[#2a2a2a] hover:text-[#e3e3e3]'
                 }`}
             >
-                <TableIcon size={12} className={selectedTableIds.includes(table.id) || currentTableId === table.id ? 'text-blue-400' : 'text-[#6b6b6b]'} />
+                <TableIcon size={12} className={currentTableId === table.id ? 'text-white' : selectedTableIds.includes(table.id) ? 'text-blue-400' : 'text-[#6b6b6b]'} />
                 
                 {editingId === table.id ? (
                     <input
@@ -396,13 +397,13 @@ function SortableNoteRow({
                 onTouchMove={cancelLongPress}
                 className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all group cursor-grab active:cursor-grabbing select-none ${
                     selectedTableIds.includes(note.id)
-                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                        ? 'bg-green-500/30 text-green-300 border border-green-500/40'
                         : currentNoteId === note.id
-                            ? 'bg-[#333] text-[#e3e3e3]'
+                            ? 'bg-teal-600/80 text-white'
                             : 'text-[#9b9b9b] hover:bg-[#2a2a2a] hover:text-[#e3e3e3]'
                 }`}
             >
-                <FileText size={12} className={selectedTableIds.includes(note.id) || currentNoteId === note.id ? 'text-green-400' : 'text-[#6b6b6b]'} />
+                <FileText size={12} className={currentNoteId === note.id ? 'text-white' : selectedTableIds.includes(note.id) ? 'text-green-400' : 'text-[#6b6b6b]'} />
                 
                 {editingId === note.id ? (
                     <input
@@ -848,49 +849,21 @@ export function TableSwitcher({ onItemSelect }: TableSwitcherProps) {
                         </span>
                     )}
                     
-                    <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                setWorkspaceSettingsId(workspace.id)
-                            }}
-                            className="text-[#6b6b6b] hover:text-[#e3e3e3] p-1.5 rounded hover:bg-[#333] transition-colors"
-                            title="Workspace settings"
-                        >
-                            <Settings size={14} />
-                        </button>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation()
+                    {/* Context Menu */}
+                    <div className="lg:opacity-0 lg:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                        <WorkspaceContextMenu
+                            workspaceId={workspace.id}
+                            onAddTable={() => {
                                 setAddingTableToWorkspace(workspace.id)
                                 setNewTableName('')
                             }}
-                            className="text-[#6b6b6b] hover:text-blue-400 p-1.5 rounded hover:bg-[#333] transition-colors"
-                            title="Add table"
-                        >
-                            <TableIcon size={14} />
-                        </button>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation()
+                            onAddNote={() => {
                                 setAddingNoteToWorkspace(workspace.id)
                                 setNewNoteName('')
                             }}
-                            className="text-[#6b6b6b] hover:text-green-400 p-1.5 rounded hover:bg-[#333] transition-colors"
-                            title="Add note"
-                        >
-                            <FileText size={14} />
-                        </button>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                handleDeleteItem('workspace', workspace.id)
-                            }}
-                            className="text-[#6b6b6b] hover:text-red-400 p-1.5 rounded hover:bg-[#333] transition-colors"
-                            title="Delete workspace"
-                        >
-                            <Trash2 size={14} />
-                        </button>
+                            onOpenSettings={() => setWorkspaceSettingsId(workspace.id)}
+                            onDelete={() => handleDeleteItem('workspace', workspace.id)}
+                        />
                     </div>
                     </div>
                 </DroppableHeader>
@@ -910,40 +883,47 @@ export function TableSwitcher({ onItemSelect }: TableSwitcherProps) {
                     </div>
                 )}
 
-                {/* Tables List */}
+                {/* Workspace Content */}
                 {isExpanded && (
-                    <div className="ml-4 mt-1 space-y-0.5 border-l border-[#373737] pl-2">
-                        {/* New Table Input */}
-                        {addingTableToWorkspace === workspace.id && (
-                            <div className="flex items-center gap-1 p-1 bg-[#191919] rounded-md border border-[#373737] animate-in fade-in">
-                                <TableIcon size={12} className="text-blue-400 ml-1 flex-shrink-0" />
-                                <input
-                                    type="text"
-                                    value={newTableName}
-                                    onChange={(e) => setNewTableName(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleCreateTable(workspace.id)
-                                        if (e.key === 'Escape') setAddingTableToWorkspace(null)
-                                    }}
-                                    placeholder="Table name..."
-                                    className="flex-1 min-w-0 bg-transparent px-2 py-1 text-sm outline-none text-[#e3e3e3] placeholder-[#6b6b6b]"
-                                    autoFocus
-                                />
-                                <button onClick={() => handleCreateTable(workspace.id)} className="text-green-400 hover:bg-green-400/20 p-1.5 rounded transition-colors flex-shrink-0">
-                                    <Check size={14} />
-                                </button>
-                                <button onClick={() => setAddingTableToWorkspace(null)} className="text-red-400 hover:bg-red-400/20 p-1.5 rounded transition-colors flex-shrink-0">
-                                    <X size={14} />
-                                </button>
-                            </div>
-                        )}
+                    <div className="ml-2 mt-1 space-y-2">
+                        {/* TABLES Section */}
+                        {(workspace.tables.filter(t => !t.isArchived).length > 0 || addingTableToWorkspace === workspace.id) && (
+                            <div className="space-y-0.5">
+                                <div className="text-[10px] uppercase tracking-wider text-[#6b6b6b] font-medium px-2 py-1">
+                                    Workspaces
+                                </div>
+                                
+                                {/* New Table Input */}
+                                {addingTableToWorkspace === workspace.id && (
+                                    <div className="flex items-center gap-1 p-1 bg-[#191919] rounded-md border border-[#373737] animate-in fade-in mx-1">
+                                        <TableIcon size={12} className="text-blue-400 ml-1 flex-shrink-0" />
+                                        <input
+                                            type="text"
+                                            value={newTableName}
+                                            onChange={(e) => setNewTableName(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleCreateTable(workspace.id)
+                                                if (e.key === 'Escape') setAddingTableToWorkspace(null)
+                                            }}
+                                            placeholder="Table name..."
+                                            className="flex-1 min-w-0 bg-transparent px-2 py-1 text-sm outline-none text-[#e3e3e3] placeholder-[#6b6b6b]"
+                                            autoFocus
+                                        />
+                                        <button onClick={() => handleCreateTable(workspace.id)} className="text-green-400 hover:bg-green-400/20 p-1.5 rounded transition-colors flex-shrink-0">
+                                            <Check size={14} />
+                                        </button>
+                                        <button onClick={() => setAddingTableToWorkspace(null)} className="text-red-400 hover:bg-red-400/20 p-1.5 rounded transition-colors flex-shrink-0">
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                )}
 
-                        {/* Tables with Drag & Drop - uses global DndContext */}
-                        <SortableContext
-                            items={workspace.tables.filter(t => !t.isArchived).map(t => t.id)}
-                            strategy={verticalListSortingStrategy}
-                        >
-                        {workspace.tables.filter(t => !t.isArchived).map((table) => (
+                                {/* Tables with Drag & Drop */}
+                                <SortableContext
+                                    items={workspace.tables.filter(t => !t.isArchived).map(t => t.id)}
+                                    strategy={verticalListSortingStrategy}
+                                >
+                                {workspace.tables.filter(t => !t.isArchived).map((table) => (
                             <SortableTableRow
                                 key={table.id}
                                 table={table}
@@ -970,13 +950,17 @@ export function TableSwitcher({ onItemSelect }: TableSwitcherProps) {
                                 onConfirmDelete={handleConfirmDelete}
                                 onCancelDelete={() => setDeleteConfirm(null)}
                             />
-                        ))}
-                        </SortableContext>
+                                ))}
+                                </SortableContext>
+                            </div>
+                        )}
 
-                        {/* Notes Section with Drag & Drop - uses global DndContext */}
-                        {workspace.notes.filter(n => !n.isArchived).length > 0 && (
-                            <div className="mt-2 pt-2 border-t border-[#373737]/50">
-                                <div className="text-[10px] uppercase tracking-wider text-[#6b6b6b] mb-1 px-1">Notes</div>
+                        {/* NOTES Section */}
+                        {(workspace.notes.filter(n => !n.isArchived).length > 0 || addingNoteToWorkspace === workspace.id) && (
+                            <div className="space-y-0.5">
+                                <div className="text-[10px] uppercase tracking-wider text-[#6b6b6b] font-medium px-2 py-1">
+                                    Notes
+                                </div>
                                 <SortableContext
                                     items={workspace.notes.filter(n => !n.isArchived).map(n => n.id)}
                                     strategy={verticalListSortingStrategy}
@@ -1010,31 +994,31 @@ export function TableSwitcher({ onItemSelect }: TableSwitcherProps) {
                                     />
                                 ))}
                                 </SortableContext>
-                            </div>
-                        )}
-
-                        {/* Add Note Input */}
-                        {addingNoteToWorkspace === workspace.id && (
-                            <div className="flex items-center gap-1 p-1 mt-2 bg-[#191919] rounded-md border border-[#373737] animate-in fade-in">
-                                <FileText size={12} className="text-green-400 ml-1 flex-shrink-0" />
-                                <input
-                                    type="text"
-                                    value={newNoteName}
-                                    onChange={(e) => setNewNoteName(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleCreateNote(workspace.id)
-                                        if (e.key === 'Escape') setAddingNoteToWorkspace(null)
-                                    }}
-                                    placeholder="Note name..."
-                                    className="flex-1 min-w-0 bg-transparent px-2 py-1 text-sm outline-none text-[#e3e3e3] placeholder-[#6b6b6b]"
-                                    autoFocus
-                                />
-                                <button onClick={() => handleCreateNote(workspace.id)} className="text-green-400 hover:bg-green-400/20 p-1.5 rounded transition-colors flex-shrink-0">
-                                    <Check size={14} />
-                                </button>
-                                <button onClick={() => setAddingNoteToWorkspace(null)} className="text-red-400 hover:bg-red-400/20 p-1.5 rounded transition-colors flex-shrink-0">
-                                    <X size={14} />
-                                </button>
+                                
+                                {/* Add Note Input */}
+                                {addingNoteToWorkspace === workspace.id && (
+                                    <div className="flex items-center gap-1 p-1 bg-[#191919] rounded-md border border-[#373737] animate-in fade-in mx-1">
+                                        <FileText size={12} className="text-green-400 ml-1 flex-shrink-0" />
+                                        <input
+                                            type="text"
+                                            value={newNoteName}
+                                            onChange={(e) => setNewNoteName(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleCreateNote(workspace.id)
+                                                if (e.key === 'Escape') setAddingNoteToWorkspace(null)
+                                            }}
+                                            placeholder="Note name..."
+                                            className="flex-1 min-w-0 bg-transparent px-2 py-1 text-sm outline-none text-[#e3e3e3] placeholder-[#6b6b6b]"
+                                            autoFocus
+                                        />
+                                        <button onClick={() => handleCreateNote(workspace.id)} className="text-green-400 hover:bg-green-400/20 p-1.5 rounded transition-colors flex-shrink-0">
+                                            <Check size={14} />
+                                        </button>
+                                        <button onClick={() => setAddingNoteToWorkspace(null)} className="text-red-400 hover:bg-red-400/20 p-1.5 rounded transition-colors flex-shrink-0">
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -1046,7 +1030,7 @@ export function TableSwitcher({ onItemSelect }: TableSwitcherProps) {
 
     return (
         <div className="flex flex-col h-full">
-            {/* Header */}
+            {/* Workspaces Header */}
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#2a2a2a]">
                 <span className="text-xs font-medium text-[#6b6b6b] uppercase tracking-wider">Workspaces</span>
                 <div className="flex items-center gap-1">

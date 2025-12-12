@@ -93,12 +93,31 @@ export interface Workspace {
     visibility?: WorkspaceVisibility
     updatedAt?: string
     isSynced?: boolean
+    // Profile workspace reference
+    profileWorkspaceId?: string
+}
+
+// Profile Workspace - top level container for workspaces
+export interface ProfileWorkspace {
+    id: string
+    name: string
+    createdAt: string
+    isDefault?: boolean
 }
 
 // Legacy support - alias for compatibility
 export type TableData = TableItem & { createdAt?: string }
 
 interface TableContextType {
+    // Profile Workspaces
+    profileWorkspaces: ProfileWorkspace[]
+    currentProfileWorkspaceId: string
+    currentProfileWorkspace: ProfileWorkspace | null
+    createProfileWorkspace: (name: string) => void
+    deleteProfileWorkspace: (id: string) => void
+    renameProfileWorkspace: (id: string, name: string) => void
+    switchProfileWorkspace: (id: string) => void
+    // Workspaces
     workspaces: Workspace[]
     currentWorkspaceId: string
     currentTableId: string
@@ -221,6 +240,28 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             notes: []
         }]
     }
+
+    // Profile Workspaces state
+    const [profileWorkspaces, setProfileWorkspaces] = useState<ProfileWorkspace[]>(() => {
+        const saved = localStorage.getItem('aura-profile-workspaces')
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved)
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return parsed
+                }
+            } catch (error) {
+                console.error('Failed to parse profile workspaces:', error)
+            }
+        }
+        return [{ id: crypto.randomUUID(), name: 'My Profile', createdAt: new Date().toISOString(), isDefault: true }]
+    })
+
+    const [currentProfileWorkspaceId, setCurrentProfileWorkspaceId] = useState<string>(() => {
+        const saved = localStorage.getItem('aura-current-profile-workspace-id')
+        if (saved) return saved
+        return profileWorkspaces[0]?.id || ''
+    })
 
     const [workspaces, setWorkspaces] = useState<Workspace[]>(() => {
         const saved = localStorage.getItem('aura-workspaces') || localStorage.getItem('aura-tables')
@@ -609,6 +650,102 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('aura-current-table-id', currentTableId)
     }, [currentTableId])
 
+    // Save profile workspaces to localStorage
+    useEffect(() => {
+        localStorage.setItem('aura-profile-workspaces', JSON.stringify(profileWorkspaces))
+    }, [profileWorkspaces])
+
+    useEffect(() => {
+        localStorage.setItem('aura-current-profile-workspace-id', currentProfileWorkspaceId)
+    }, [currentProfileWorkspaceId])
+
+    // Profile Workspace operations
+    const currentProfileWorkspace = useMemo(() => 
+        profileWorkspaces.find(pw => pw.id === currentProfileWorkspaceId) || null
+    , [profileWorkspaces, currentProfileWorkspaceId])
+
+    const createProfileWorkspace = useCallback((name: string) => {
+        const newProfileWorkspace: ProfileWorkspace = {
+            id: crypto.randomUUID(),
+            name,
+            createdAt: new Date().toISOString(),
+        }
+        setProfileWorkspaces(prev => [...prev, newProfileWorkspace])
+    }, [])
+
+    const deleteProfileWorkspace = useCallback((id: string) => {
+        // Don't delete the last profile workspace
+        if (profileWorkspaces.length <= 1) return
+        
+        // Also delete workspaces belonging to this profile
+        setWorkspaces(prev => prev.filter(ws => ws.profileWorkspaceId !== id))
+        
+        setProfileWorkspaces(prev => prev.filter(pw => pw.id !== id))
+        
+        // If deleting current, switch to first available
+        if (id === currentProfileWorkspaceId) {
+            const remaining = profileWorkspaces.filter(pw => pw.id !== id)
+            if (remaining.length > 0) {
+                // Switch to the remaining profile and its workspaces
+                const nextProfileId = remaining[0].id
+                setCurrentProfileWorkspaceId(nextProfileId)
+                const nextProfileWs = workspaces.filter(ws => 
+                    ws.profileWorkspaceId === nextProfileId
+                )
+                if (nextProfileWs.length > 0) {
+                    setCurrentWorkspaceId(nextProfileWs[0].id)
+                    setCurrentTableId(nextProfileWs[0].tables[0]?.id || '')
+                    setSelectedTables(nextProfileWs[0].tables[0]?.id ? [nextProfileWs[0].tables[0].id] : [])
+                }
+            }
+        }
+    }, [profileWorkspaces, currentProfileWorkspaceId, workspaces])
+
+    const renameProfileWorkspace = useCallback((id: string, name: string) => {
+        setProfileWorkspaces(prev => prev.map(pw => 
+            pw.id === id ? { ...pw, name } : pw
+        ))
+    }, [])
+
+    const switchProfileWorkspace = useCallback((id: string) => {
+        setCurrentProfileWorkspaceId(id)
+        // Reset current workspace/table selection when switching profiles
+        // The filtered workspaces will change, so we need to select the first available
+        const profileWs = workspaces.filter(ws => ws.profileWorkspaceId === id)
+        if (profileWs.length > 0) {
+            setCurrentWorkspaceId(profileWs[0].id)
+            if (profileWs[0].tables.length > 0) {
+                setCurrentTableId(profileWs[0].tables[0].id)
+                setSelectedTables([profileWs[0].tables[0].id])
+                setCurrentItemType('table')
+            } else if (profileWs[0].notes.length > 0) {
+                setCurrentNoteId(profileWs[0].notes[0].id)
+                setSelectedTables([profileWs[0].notes[0].id])
+                setCurrentItemType('note')
+            } else {
+                setCurrentTableId('')
+                setCurrentNoteId(null)
+                setSelectedTables([])
+            }
+        } else {
+            // No workspaces in this profile - create a default one
+            const newWorkspace: Workspace = {
+                id: crypto.randomUUID(),
+                name: 'My Workspace',
+                createdAt: new Date().toISOString(),
+                isExpanded: true,
+                tables: [],
+                notes: [],
+                profileWorkspaceId: id
+            }
+            setWorkspaces(prev => [...prev, newWorkspace])
+            setCurrentWorkspaceId(newWorkspace.id)
+            setCurrentTableId('')
+            setCurrentNoteId(null)
+            setSelectedTables([])
+        }
+    }, [workspaces])
+
     // Helper functions
     const getTableById = useCallback((tableId: string): TableItem | undefined => {
         for (const ws of workspaces) {
@@ -634,15 +771,39 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         return workspaces.find(ws => ws.notes.some(n => n.id === noteId))
     }, [workspaces])
 
+    // Assign unassigned workspaces to current profile immediately (before filtering)
+    const workspacesWithProfile = useMemo(() => {
+        const defaultProfileId = profileWorkspaces.find(pw => pw.isDefault)?.id || profileWorkspaces[0]?.id || currentProfileWorkspaceId
+        return workspaces.map(ws => 
+            !ws.profileWorkspaceId ? { ...ws, profileWorkspaceId: defaultProfileId } : ws
+        )
+    }, [workspaces, profileWorkspaces, currentProfileWorkspaceId])
+    
+    // Persist profile assignment to state when there are unassigned workspaces
+    useEffect(() => {
+        const hasUnassigned = workspaces.some(ws => !ws.profileWorkspaceId)
+        if (hasUnassigned && profileWorkspaces.length > 0) {
+            const defaultProfileId = profileWorkspaces.find(pw => pw.isDefault)?.id || profileWorkspaces[0].id
+            setWorkspaces(prev => prev.map(ws => 
+                !ws.profileWorkspaceId ? { ...ws, profileWorkspaceId: defaultProfileId } : ws
+            ))
+        }
+    }, [workspaces, profileWorkspaces])
+
+    // Filter workspaces by current profile workspace
+    const filteredWorkspaces = useMemo(() => {
+        return workspacesWithProfile.filter(ws => ws.profileWorkspaceId === currentProfileWorkspaceId)
+    }, [workspacesWithProfile, currentProfileWorkspaceId])
+
     // Memoize derived values for performance
     const currentWorkspace = useMemo(() => 
-        workspaces.find(w => w.id === currentWorkspaceId) || workspaces[0],
-        [workspaces, currentWorkspaceId]
+        filteredWorkspaces.find(w => w.id === currentWorkspaceId) || filteredWorkspaces[0],
+        [filteredWorkspaces, currentWorkspaceId]
     )
     
     const currentTable = useMemo(() => 
-        getTableById(currentTableId) || workspaces[0]?.tables[0],
-        [getTableById, currentTableId, workspaces]
+        getTableById(currentTableId) || filteredWorkspaces[0]?.tables[0],
+        [getTableById, currentTableId, filteredWorkspaces]
     )
     
     const currentNote = useMemo(() => 
@@ -740,15 +901,20 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             createdAt: new Date().toISOString(),
             isExpanded: true,
             tables: [],
-            notes: []
+            notes: [],
+            profileWorkspaceId: currentProfileWorkspaceId // Assign to current profile
         }
         setWorkspacesWithHistory([...workspaces, newWorkspace])
         setCurrentWorkspaceId(newWorkspace.id)
     }
 
     const deleteWorkspace = (id: string) => {
-        if (workspaces.length === 1) {
-            alert('Cannot delete the last workspace')
+        // Check against filtered workspaces (current profile's workspaces)
+        const currentProfileWorkspaces = workspaces.filter(ws => 
+            ws.profileWorkspaceId === currentProfileWorkspaceId
+        )
+        if (currentProfileWorkspaces.length === 1) {
+            alert('Cannot delete the last workspace in this profile')
             return
         }
         
@@ -762,12 +928,17 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         const newWorkspaces = workspaces.filter(w => w.id !== id)
         setWorkspacesWithHistory(newWorkspaces)
         
-        // If current workspace was deleted, switch to first available
+        // If current workspace was deleted, switch to first available in same profile
         if (currentWorkspaceId === id) {
-            const nextWs = newWorkspaces[0]
-            setCurrentWorkspaceId(nextWs.id)
-            setCurrentTableId(nextWs.tables[0]?.id || '')
-            setSelectedTables([nextWs.tables[0]?.id || ''])
+            const remainingInProfile = newWorkspaces.filter(ws => 
+                ws.profileWorkspaceId === currentProfileWorkspaceId
+            )
+            const nextWs = remainingInProfile[0]
+            if (nextWs) {
+                setCurrentWorkspaceId(nextWs.id)
+                setCurrentTableId(nextWs.tables[0]?.id || '')
+                setSelectedTables([nextWs.tables[0]?.id || ''])
+            }
         }
     }
 
@@ -784,8 +955,12 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         ))
     }
 
-    const reorderWorkspaces = (newWorkspaces: Workspace[]) => {
-        setWorkspacesWithHistory(newWorkspaces)
+    const reorderWorkspaces = (reorderedWorkspaces: Workspace[]) => {
+        // Preserve workspaces from other profiles, only reorder current profile's workspaces
+        const otherProfileWorkspaces = workspaces.filter(ws => 
+            ws.profileWorkspaceId !== currentProfileWorkspaceId
+        )
+        setWorkspacesWithHistory([...reorderedWorkspaces, ...otherProfileWorkspaces])
     }
 
     // ===== TABLE OPERATIONS WITHIN WORKSPACE =====
@@ -1373,7 +1548,16 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
 
     return (
         <TableContext.Provider value={{
-            workspaces,
+            // Profile Workspaces
+            profileWorkspaces,
+            currentProfileWorkspaceId,
+            currentProfileWorkspace,
+            createProfileWorkspace,
+            deleteProfileWorkspace,
+            renameProfileWorkspace,
+            switchProfileWorkspace,
+            // Workspaces (filtered by current profile)
+            workspaces: filteredWorkspaces,
             currentWorkspaceId,
             currentTableId,
             currentNoteId,
