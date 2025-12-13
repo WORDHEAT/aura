@@ -71,12 +71,11 @@ export function ReminderModal({
                     })
                 }
                 
-                // Schedule local notification for current user
-                // For team workspaces, skip Telegram (team system handles it) but still show browser notification
+                // Schedule local notification and Telegram for current user
                 NotificationService.schedule(title, reminderDate, undefined, {
                     tableName,
                     rowTitle,
-                    userId: isTeamWorkspace ? undefined : userId // Skip Telegram for team workspaces
+                    userId
                 })
             }
             setIsSaving(false)

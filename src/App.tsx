@@ -76,6 +76,11 @@ function App() {
     setShowNotificationPanel(false)
   }
 
+  const handleDismissNotification = async (notificationId: string) => {
+    await TeamNotificationService.markAsRead(notificationId)
+    setTeamNotifications(prev => prev.filter(n => n.id !== notificationId))
+  }
+
 
   // Keyboard shortcuts for undo/redo
   useEffect(() => {
@@ -247,7 +252,7 @@ function App() {
                             teamNotifications.map((notification, index) => (
                               <div
                                 key={notification.id}
-                                className={`px-5 py-4 hover:bg-[#252525] transition-colors cursor-pointer group ${
+                                className={`px-5 py-4 hover:bg-[#252525] transition-colors group ${
                                   index !== teamNotifications.length - 1 ? 'border-b border-[#2a2a2a]' : ''
                                 }`}
                               >
@@ -267,6 +272,16 @@ function App() {
                                       {new Date(notification.created_at).toLocaleString()}
                                     </p>
                                   </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDismissNotification(notification.id)
+                                    }}
+                                    className="flex-shrink-0 p-1.5 rounded-lg text-[#555] hover:text-[#e3e3e3] hover:bg-[#333] opacity-0 group-hover:opacity-100 transition-all"
+                                    title="Dismiss"
+                                  >
+                                    <X size={14} />
+                                  </button>
                                 </div>
                               </div>
                             ))
