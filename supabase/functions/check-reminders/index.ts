@@ -122,33 +122,8 @@ Deno.serve(async (req) => {
                 notifications_created: notifications.length
             })
 
-            // Send Telegram notifications if users have it configured
-            for (const userId of memberIds) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('telegram_chat_id')
-                    .eq('id', userId)
-                    .single()
-
-                if (profile?.telegram_chat_id) {
-                    try {
-                        const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN')
-                        if (botToken) {
-                            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    chat_id: profile.telegram_chat_id,
-                                    text: `🔔 *Aura Reminder*\n\n${reminder.title}\n\n_Reminder time has arrived!_`,
-                                    parse_mode: 'Markdown'
-                                })
-                            })
-                        }
-                    } catch (telegramError) {
-                        console.error('Telegram notification failed:', telegramError)
-                    }
-                }
-            }
+            // Note: Telegram notifications are handled by the client-side NotificationService
+            // to avoid duplicate notifications
         }
 
         return new Response(
