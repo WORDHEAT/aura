@@ -16,6 +16,18 @@ CREATE TABLE IF NOT EXISTS profiles (
     avatar_url TEXT,
     telegram_chat_id TEXT,
     timezone TEXT DEFAULT 'UTC',
+    settings JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Profile workspaces table (top-level containers for organizing workspaces)
+CREATE TABLE IF NOT EXISTS profile_workspaces (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    is_default BOOLEAN DEFAULT false,
+    position INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -25,6 +37,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
     owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    profile_workspace_id UUID REFERENCES profile_workspaces(id) ON DELETE SET NULL,
     visibility workspace_visibility DEFAULT 'private',
     is_expanded BOOLEAN DEFAULT true,
     position INTEGER DEFAULT 0,
@@ -71,13 +84,16 @@ CREATE TABLE IF NOT EXISTS notes (
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_workspaces_owner ON workspaces(owner_id);
+CREATE INDEX IF NOT EXISTS idx_workspaces_profile ON workspaces(profile_workspace_id);
 CREATE INDEX IF NOT EXISTS idx_workspace_members_workspace ON workspace_members(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_workspace_members_user ON workspace_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_tables_workspace ON tables(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_notes_workspace ON notes(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_profile_workspaces_user ON profile_workspaces(user_id);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profile_workspaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tables ENABLE ROW LEVEL SECURITY;
@@ -95,6 +111,23 @@ CREATE POLICY "Authenticated users can lookup profiles by email"
 CREATE POLICY "Users can update their own profile"
     ON profiles FOR UPDATE
     USING (auth.uid() = id);
+
+-- Profile workspaces policies
+CREATE POLICY "Users can view their own profile workspaces"
+    ON profile_workspaces FOR SELECT
+    USING (user_id = auth.uid());
+
+CREATE POLICY "Users can insert their own profile workspaces"
+    ON profile_workspaces FOR INSERT
+    WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "Users can update their own profile workspaces"
+    ON profile_workspaces FOR UPDATE
+    USING (user_id = auth.uid());
+
+CREATE POLICY "Users can delete their own profile workspaces"
+    ON profile_workspaces FOR DELETE
+    USING (user_id = auth.uid());
 
 -- Auto-create profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()

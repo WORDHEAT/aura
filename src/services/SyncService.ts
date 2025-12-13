@@ -8,8 +8,19 @@ export interface CloudWorkspace {
     id: string
     name: string
     owner_id: string
+    profile_workspace_id: string | null
     visibility: WorkspaceVisibility
     is_expanded: boolean
+    position: number
+    created_at: string
+    updated_at: string
+}
+
+export interface CloudProfileWorkspace {
+    id: string
+    user_id: string
+    name: string
+    is_default: boolean
     position: number
     created_at: string
     updated_at: string
@@ -65,6 +76,7 @@ const toLocalWorkspace = (
     // Extended cloud fields
     ownerId: cloudWs.owner_id,
     visibility: cloudWs.visibility,
+    profileWorkspaceId: cloudWs.profile_workspace_id || undefined,
     createdAt: cloudWs.created_at,
     updatedAt: cloudWs.updated_at
 })
@@ -74,6 +86,7 @@ const toCloudWorkspace = (ws: Workspace, ownerId: string, position: number): Omi
     id: ws.id,
     name: ws.name,
     owner_id: ownerId,
+    profile_workspace_id: ws.profileWorkspaceId || null,
     visibility: ws.visibility || 'private',
     is_expanded: ws.isExpanded !== false,
     position
@@ -719,6 +732,103 @@ export class SyncService {
             workspaceId: data.workspace_id,
             allowEdit: data.allow_edit
         }
+    }
+
+    // ============ PROFILE WORKSPACES ============
+
+    async fetchProfileWorkspaces(): Promise<CloudProfileWorkspace[]> {
+        if (!this.userId) return []
+
+        const { data, error } = await supabase
+            .from('profile_workspaces')
+            .select('*')
+            .eq('user_id', this.userId)
+            .order('position', { ascending: true })
+
+        if (error) {
+            console.error('Error fetching profile workspaces:', error)
+            return []
+        }
+
+        return data || []
+    }
+
+    async createProfileWorkspace(profileWorkspace: { id: string; name: string; isDefault: boolean }, position: number): Promise<void> {
+        if (!this.userId) throw new Error('Not authenticated')
+
+        const { error } = await supabase
+            .from('profile_workspaces')
+            .insert({
+                id: profileWorkspace.id,
+                user_id: this.userId,
+                name: profileWorkspace.name,
+                is_default: profileWorkspace.isDefault,
+                position
+            })
+
+        if (error) throw error
+        logger.log('✅ Profile workspace created:', profileWorkspace.id)
+    }
+
+    async updateProfileWorkspace(profileWorkspace: { id: string; name: string; isDefault: boolean }, position: number): Promise<void> {
+        if (!this.userId) throw new Error('Not authenticated')
+
+        const { error } = await supabase
+            .from('profile_workspaces')
+            .update({
+                name: profileWorkspace.name,
+                is_default: profileWorkspace.isDefault,
+                position
+            })
+            .eq('id', profileWorkspace.id)
+            .eq('user_id', this.userId)
+
+        if (error) throw error
+        logger.log('✅ Profile workspace updated:', profileWorkspace.id)
+    }
+
+    async deleteProfileWorkspace(id: string): Promise<void> {
+        if (!this.userId) throw new Error('Not authenticated')
+
+        const { error } = await supabase
+            .from('profile_workspaces')
+            .delete()
+            .eq('id', id)
+            .eq('user_id', this.userId)
+
+        if (error) throw error
+        logger.log('🗑️ Profile workspace deleted:', id)
+    }
+
+    // ============ USER SETTINGS ============
+
+    async fetchSettings(): Promise<Record<string, unknown> | null> {
+        if (!this.userId) return null
+
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('settings')
+            .eq('id', this.userId)
+            .single()
+
+        if (error) {
+            console.error('Error fetching settings:', error)
+            return null
+        }
+
+        return data?.settings || {}
+    }
+
+    async updateSettings(settings: Record<string, unknown>): Promise<void> {
+        if (!this.userId) throw new Error('Not authenticated')
+
+        const { error } = await supabase
+            .from('profiles')
+            .update({ settings })
+            .eq('id', this.userId)
+
+        if (error) throw error
+        logger.log('✅ Settings synced to cloud')
     }
 }
 

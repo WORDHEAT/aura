@@ -307,9 +307,11 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const initialSyncDoneRef = useRef(false)
     const isLoadingFromCloudRef = useRef(false)
     
-    // Ref to always access latest workspaces
+    // Ref to always access latest workspaces and profile workspaces
     const workspacesRef = useRef(workspaces)
     workspacesRef.current = workspaces
+    const profileWorkspacesRef = useRef(profileWorkspaces)
+    profileWorkspacesRef.current = profileWorkspaces
 
     // Set user ID for sync service when auth changes
     useEffect(() => {
@@ -325,6 +327,43 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         setSyncError(null)
         
         try {
+            // Sync profile workspaces first
+            const cloudProfileWorkspaces = await syncService.fetchProfileWorkspaces()
+            const currentProfileWorkspaces = profileWorkspacesRef.current
+            
+            if (cloudProfileWorkspaces.length > 0) {
+                logger.log('📥 Loaded', cloudProfileWorkspaces.length, 'profile workspaces from cloud')
+                const mappedProfiles = cloudProfileWorkspaces.map(pw => ({
+                    id: pw.id,
+                    name: pw.name,
+                    isDefault: pw.is_default,
+                    createdAt: pw.created_at
+                }))
+                setProfileWorkspaces(mappedProfiles)
+                
+                // Set current profile if not set
+                if (!currentProfileWorkspaceId || !mappedProfiles.some(p => p.id === currentProfileWorkspaceId)) {
+                    const defaultProfile = mappedProfiles.find(p => p.isDefault) || mappedProfiles[0]
+                    setCurrentProfileWorkspaceId(defaultProfile.id)
+                }
+            } else if (currentProfileWorkspaces.length > 0) {
+                // Push local profile workspaces to cloud
+                logger.log('☁️ Cloud has no profile workspaces, pushing local...')
+                for (let i = 0; i < currentProfileWorkspaces.length; i++) {
+                    const pw = currentProfileWorkspaces[i]
+                    try {
+                        await syncService.createProfileWorkspace({
+                            id: pw.id,
+                            name: pw.name,
+                            isDefault: pw.isDefault || false
+                        }, i)
+                    } catch (err) {
+                        console.error('Error pushing profile workspace:', err)
+                    }
+                }
+            }
+            
+            // Now sync workspaces
             const cloudWorkspaces = await syncService.fetchWorkspaces()
             const currentWorkspaces = workspacesRef.current
             
@@ -332,9 +371,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 logger.log('📥 Loaded', cloudWorkspaces.length, 'workspaces from cloud')
                 
                 // Get current profile ID for new workspaces
-                const currentProfile = localStorage.getItem('aura-current-profile-workspace-id')
-                const defaultProfile = JSON.parse(localStorage.getItem('aura-profile-workspaces') || '[]')[0]?.id
-                const profileIdForNew = currentProfile || defaultProfile
+                const profileIdForNew = currentProfileWorkspaceId || profileWorkspaces[0]?.id
                 
                 // Preserve local expansion state and profile assignment
                 const finalWorkspaces = cloudWorkspaces.map(cloudWs => {
@@ -342,8 +379,8 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                     return {
                         ...cloudWs,
                         isExpanded: localWs?.isExpanded ?? cloudWs.isExpanded,
-                        // Preserve existing profile assignment, or assign to current profile for new workspaces
-                        profileWorkspaceId: localWs?.profileWorkspaceId || profileIdForNew
+                        // Use cloud profile assignment if available, otherwise use local or default
+                        profileWorkspaceId: cloudWs.profileWorkspaceId || localWs?.profileWorkspaceId || profileIdForNew
                     }
                 })
                 
@@ -677,8 +714,19 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             name,
             createdAt: new Date().toISOString(),
         }
-        setProfileWorkspaces(prev => [...prev, newProfileWorkspace])
-    }, [])
+        setProfileWorkspaces(prev => {
+            const newList = [...prev, newProfileWorkspace]
+            // Sync to cloud
+            if (isAuthenticated && user) {
+                syncService.createProfileWorkspace({
+                    id: newProfileWorkspace.id,
+                    name: newProfileWorkspace.name,
+                    isDefault: false
+                }, newList.length - 1).catch(console.error)
+            }
+            return newList
+        })
+    }, [isAuthenticated, user])
 
     const deleteProfileWorkspace = useCallback((id: string) => {
         // Don't delete the last profile workspace
@@ -688,6 +736,11 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         setWorkspaces(prev => prev.filter(ws => ws.profileWorkspaceId !== id))
         
         setProfileWorkspaces(prev => prev.filter(pw => pw.id !== id))
+        
+        // Sync delete to cloud
+        if (isAuthenticated && user) {
+            syncService.deleteProfileWorkspace(id).catch(console.error)
+        }
         
         // If deleting current, switch to first available
         if (id === currentProfileWorkspaceId) {
@@ -706,13 +759,26 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 }
             }
         }
-    }, [profileWorkspaces, currentProfileWorkspaceId, workspaces])
+    }, [profileWorkspaces, currentProfileWorkspaceId, workspaces, isAuthenticated, user])
 
     const renameProfileWorkspace = useCallback((id: string, name: string) => {
-        setProfileWorkspaces(prev => prev.map(pw => 
-            pw.id === id ? { ...pw, name } : pw
-        ))
-    }, [])
+        setProfileWorkspaces(prev => {
+            const updated = prev.map(pw => pw.id === id ? { ...pw, name } : pw)
+            // Sync to cloud
+            if (isAuthenticated && user) {
+                const pw = updated.find(p => p.id === id)
+                if (pw) {
+                    const position = updated.indexOf(pw)
+                    syncService.updateProfileWorkspace({
+                        id: pw.id,
+                        name: pw.name,
+                        isDefault: pw.isDefault || false
+                    }, position).catch(console.error)
+                }
+            }
+            return updated
+        })
+    }, [isAuthenticated, user])
 
     const switchProfileWorkspace = useCallback((id: string) => {
         setCurrentProfileWorkspaceId(id)
