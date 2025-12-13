@@ -331,12 +331,19 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             if (cloudWorkspaces.length > 0) {
                 logger.log('📥 Loaded', cloudWorkspaces.length, 'workspaces from cloud')
                 
-                // Preserve local expansion state only
+                // Get current profile ID for new workspaces
+                const currentProfile = localStorage.getItem('aura-current-profile-workspace-id')
+                const defaultProfile = JSON.parse(localStorage.getItem('aura-profile-workspaces') || '[]')[0]?.id
+                const profileIdForNew = currentProfile || defaultProfile
+                
+                // Preserve local expansion state and profile assignment
                 const finalWorkspaces = cloudWorkspaces.map(cloudWs => {
                     const localWs = currentWorkspaces.find(ws => ws.id === cloudWs.id)
                     return {
                         ...cloudWs,
-                        isExpanded: localWs?.isExpanded ?? cloudWs.isExpanded
+                        isExpanded: localWs?.isExpanded ?? cloudWs.isExpanded,
+                        // Preserve existing profile assignment, or assign to current profile for new workspaces
+                        profileWorkspaceId: localWs?.profileWorkspaceId || profileIdForNew
                     }
                 })
                 

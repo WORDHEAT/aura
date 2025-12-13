@@ -214,8 +214,8 @@ function App() {
                   {/* Notification Panel */}
                   {showNotificationPanel && (
                     <>
-                      <div className="fixed inset-0 z-[100]" onClick={() => setShowNotificationPanel(false)} />
-                      <div className="absolute right-0 top-full mt-2 w-96 bg-[#1a1a1a] border border-[#373737] rounded-2xl shadow-2xl z-[101] overflow-hidden">
+                      <div className="fixed inset-0 z-[100] bg-black/50 sm:bg-transparent" onClick={() => setShowNotificationPanel(false)} />
+                      <div className="fixed sm:absolute inset-x-4 sm:inset-x-auto bottom-4 sm:bottom-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-96 bg-[#1a1a1a] border border-[#373737] rounded-2xl shadow-2xl z-[101] overflow-hidden">
                         {/* Header */}
                         <div className="flex items-center justify-between px-5 py-4 border-b border-[#2a2a2a] bg-gradient-to-r from-[#202020] to-[#1a1a1a]">
                           <div className="flex items-center gap-2">
