@@ -2,8 +2,10 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import type { Column, Row } from '../components/Table/Table'
 import { useAuth } from './AuthContext'
 import { syncService } from '../services/SyncService'
+import { supabase } from '../lib/supabase'
 import { updateRowInTree, deleteRowFromTree, addSiblingToTree, addChildToRowInTree } from '../utils/treeUtils'
 import { logger } from '../lib/logger'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 // Pending operation for offline queue
 interface PendingOperation {
@@ -306,6 +308,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     // Simple flags for sync
     const initialSyncDoneRef = useRef(false)
     const isLoadingFromCloudRef = useRef(false)
+    const isPushingToCloudRef = useRef(false) // Prevent realtime sync during push
     
     // Ref to always access latest workspaces and profile workspaces
     const workspacesRef = useRef(workspaces)
@@ -491,6 +494,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const pushToCloud = useCallback(async (workspacesToPush: Workspace[]): Promise<boolean> => {
         if (!isAuthenticated || !user) return false
         
+        isPushingToCloudRef.current = true
         let hasErrors = false
         
         try {
@@ -623,6 +627,11 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             console.error('Push to cloud error:', error)
             setSyncError('Sync failed')
             return false
+        } finally {
+            // Reset flag after a short delay to ignore our own realtime events
+            setTimeout(() => {
+                isPushingToCloudRef.current = false
+            }, 2000)
         }
     }, [isAuthenticated, user])
 
@@ -684,6 +693,118 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         window.addEventListener('beforeunload', handleBeforeUnload)
         return () => window.removeEventListener('beforeunload', handleBeforeUnload)
     }, [isAuthenticated, user])
+
+    // Real-time subscription for cross-device sync
+    const realtimeChannelRef = useRef<RealtimeChannel | null>(null)
+    const realtimeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    
+    useEffect(() => {
+        if (!isAuthenticated || !user) {
+            // Cleanup subscription when logged out
+            if (realtimeChannelRef.current) {
+                supabase.removeChannel(realtimeChannelRef.current)
+                realtimeChannelRef.current = null
+            }
+            if (realtimeSyncTimeoutRef.current) {
+                clearTimeout(realtimeSyncTimeoutRef.current)
+            }
+            return
+        }
+
+        // Don't create duplicate subscriptions
+        if (realtimeChannelRef.current) return
+
+        // Debounced sync handler to batch rapid realtime events
+        const debouncedSync = () => {
+            if (isPushingToCloudRef.current || isLoadingFromCloudRef.current) {
+                logger.log('⏭️ Skipping realtime sync - local operation in progress')
+                return
+            }
+            
+            // Clear existing timeout
+            if (realtimeSyncTimeoutRef.current) {
+                clearTimeout(realtimeSyncTimeoutRef.current)
+            }
+            
+            // Debounce by 1 second to batch rapid changes
+            realtimeSyncTimeoutRef.current = setTimeout(() => {
+                logger.log('🔄 Syncing from realtime event...')
+                isLoadingFromCloudRef.current = true
+                syncWorkspaces().finally(() => {
+                    isLoadingFromCloudRef.current = false
+                })
+            }, 1000)
+        }
+
+        // Subscribe to changes on workspaces, tables, and notes
+        const channel = supabase
+            .channel('workspace-sync')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'workspaces',
+                    filter: `owner_id=eq.${user.id}`
+                },
+                (payload) => {
+                    logger.log('🔄 Realtime: workspace change detected', payload.eventType)
+                    debouncedSync()
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'tables'
+                },
+                (payload) => {
+                    logger.log('🔄 Realtime: table change detected', payload.eventType)
+                    debouncedSync()
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'notes'
+                },
+                (payload) => {
+                    logger.log('🔄 Realtime: note change detected', payload.eventType)
+                    debouncedSync()
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'profile_workspaces',
+                    filter: `user_id=eq.${user.id}`
+                },
+                (payload) => {
+                    logger.log('🔄 Realtime: profile workspace change detected', payload.eventType)
+                    debouncedSync()
+                }
+            )
+            .subscribe((status) => {
+                logger.log('📡 Realtime subscription status:', status)
+            })
+
+        realtimeChannelRef.current = channel
+
+        return () => {
+            if (realtimeChannelRef.current) {
+                supabase.removeChannel(realtimeChannelRef.current)
+                realtimeChannelRef.current = null
+            }
+            if (realtimeSyncTimeoutRef.current) {
+                clearTimeout(realtimeSyncTimeoutRef.current)
+            }
+        }
+    }, [isAuthenticated, user, syncWorkspaces])
     
     // Save to localStorage
     useEffect(() => {

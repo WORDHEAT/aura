@@ -21,6 +21,9 @@ export interface Database {
           email: string
           name: string | null
           avatar_url: string | null
+          telegram_chat_id: string | null
+          timezone: string
+          settings: Json
           created_at: string
           updated_at: string
         }
@@ -29,6 +32,9 @@ export interface Database {
           email: string
           name?: string | null
           avatar_url?: string | null
+          telegram_chat_id?: string | null
+          timezone?: string
+          settings?: Json
           created_at?: string
           updated_at?: string
         }
@@ -37,6 +43,9 @@ export interface Database {
           email?: string
           name?: string | null
           avatar_url?: string | null
+          telegram_chat_id?: string | null
+          timezone?: string
+          settings?: Json
           updated_at?: string
         }
       }
@@ -45,6 +54,7 @@ export interface Database {
           id: string
           name: string
           owner_id: string
+          profile_workspace_id: string | null
           visibility: WorkspaceVisibility
           is_expanded: boolean
           position: number
@@ -55,6 +65,7 @@ export interface Database {
           id?: string
           name: string
           owner_id: string
+          profile_workspace_id?: string | null
           visibility?: WorkspaceVisibility
           is_expanded?: boolean
           position?: number
@@ -63,8 +74,35 @@ export interface Database {
         }
         Update: {
           name?: string
+          profile_workspace_id?: string | null
           visibility?: WorkspaceVisibility
           is_expanded?: boolean
+          position?: number
+          updated_at?: string
+        }
+      }
+      profile_workspaces: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          is_default: boolean
+          position: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          is_default?: boolean
+          position?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          is_default?: boolean
           position?: number
           updated_at?: string
         }

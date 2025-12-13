@@ -277,6 +277,7 @@ export class SyncService {
                 name: workspace.name,
                 is_expanded: workspace.isExpanded !== false,
                 visibility: workspace.visibility || 'private',
+                profile_workspace_id: workspace.profileWorkspaceId || null,
                 position
             })
             .eq('id', workspace.id)
