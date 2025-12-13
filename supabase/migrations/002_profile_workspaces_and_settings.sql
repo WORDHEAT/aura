@@ -51,12 +51,15 @@ CREATE TRIGGER update_profile_workspaces_updated_at
     BEFORE UPDATE ON profile_workspaces
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Add profile_workspaces to realtime
+-- Add profile_workspaces to realtime (optional - skip if errors occur)
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
-        ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS profile_workspaces;
-        ALTER PUBLICATION supabase_realtime ADD TABLE profile_workspaces;
-        RAISE NOTICE 'Added profile_workspaces to supabase_realtime publication';
+        BEGIN
+            ALTER PUBLICATION supabase_realtime ADD TABLE profile_workspaces;
+            RAISE NOTICE 'Added profile_workspaces to supabase_realtime publication';
+        EXCEPTION WHEN duplicate_object THEN
+            RAISE NOTICE 'profile_workspaces already in publication';
+        END;
     END IF;
 END $$;

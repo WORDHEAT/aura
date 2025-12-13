@@ -1,4 +1,4 @@
-import { X, Bell, Users } from 'lucide-react'
+import { X, Bell, Users, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { NotificationService } from '../../services/NotificationService'
 import { TeamNotificationService } from '../../services/TeamNotificationService'
@@ -127,21 +127,38 @@ export function ReminderModal({
                     </div>
                 </div>
 
-                <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 px-4 sm:px-5 py-4 border-t border-[#373737] sticky bottom-0 bg-[#202020]">
-                    <button
-                        onClick={onClose}
-                        disabled={isSaving}
-                        className="px-4 py-3 sm:py-2 text-sm font-medium text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] rounded-md transition-colors disabled:opacity-50"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className="px-4 py-3 sm:py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors disabled:opacity-50"
-                    >
-                        {isSaving ? 'Saving...' : 'Save Reminder'}
-                    </button>
+                <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2 px-4 sm:px-5 py-4 border-t border-[#373737] sticky bottom-0 bg-[#202020]">
+                    {currentValue ? (
+                        <button
+                            onClick={() => {
+                                onSave('')
+                                onClose()
+                            }}
+                            disabled={isSaving}
+                            className="flex items-center justify-center gap-2 px-4 py-3 sm:py-2 text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-md transition-colors disabled:opacity-50"
+                        >
+                            <Trash2 size={16} />
+                            Clear Reminder
+                        </button>
+                    ) : (
+                        <div />
+                    )}
+                    <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2">
+                        <button
+                            onClick={onClose}
+                            disabled={isSaving}
+                            className="px-4 py-3 sm:py-2 text-sm font-medium text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] rounded-md transition-colors disabled:opacity-50"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            disabled={isSaving}
+                            className="px-4 py-3 sm:py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors disabled:opacity-50"
+                        >
+                            {isSaving ? 'Saving...' : 'Save Reminder'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
