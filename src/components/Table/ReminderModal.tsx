@@ -9,6 +9,7 @@ interface ReminderModalProps {
     onSave: (date: string) => void
     currentValue?: string
     tableName?: string
+    rowTitle?: string
     tableId?: string
     rowId?: string
     colId?: string
@@ -23,7 +24,8 @@ export function ReminderModal({
     onClose, 
     onSave, 
     currentValue, 
-    tableName, 
+    tableName,
+    rowTitle,
     tableId,
     rowId,
     colId,
@@ -72,6 +74,7 @@ export function ReminderModal({
                 // Also schedule local notification for current user
                 NotificationService.schedule(title, reminderDate, undefined, {
                     tableName,
+                    rowTitle,
                     userId
                 })
             }

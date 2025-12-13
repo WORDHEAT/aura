@@ -15,7 +15,8 @@ export class TelegramService {
         userId: string,
         title: string,
         tableName: string,
-        scheduledTime: Date
+        scheduledTime: Date,
+        rowTitle?: string
     ): Promise<boolean> {
         try {
             // First, get user's telegram_chat_id from profiles
@@ -36,6 +37,7 @@ export class TelegramService {
                     chatId: profile.telegram_chat_id,
                     title,
                     tableName,
+                    rowTitle,
                     scheduledTime: scheduledTime.toISOString()
                 }
             })

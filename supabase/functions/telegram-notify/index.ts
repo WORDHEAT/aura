@@ -9,6 +9,7 @@ interface RequestBody {
     chatId: string
     title?: string
     tableName?: string
+    rowTitle?: string
     scheduledTime?: string
     isTest?: boolean
 }
@@ -27,7 +28,7 @@ serve(async (req) => {
 
     try {
         const body: RequestBody = await req.json()
-        const { chatId, title, tableName, scheduledTime, isTest } = body
+        const { chatId, title, tableName, rowTitle, scheduledTime, isTest } = body
 
         if (!chatId) {
             return new Response(
@@ -50,7 +51,7 @@ serve(async (req) => {
             message = '✅ *Aura Test Notification*\n\nYour Telegram notifications are working! You will receive reminders here.'
         } else {
             const time = scheduledTime ? new Date(scheduledTime).toLocaleString() : 'Now'
-            message = `🔔 *Reminder: ${title || 'Untitled'}*\n\n📋 Table: ${tableName || 'Unknown'}\n⏰ Time: ${time}\n\n_Open Aura to view details_`
+            message = `🔔 *${title || 'Reminder'}*\n\n📋 Table: ${tableName || 'Unknown'}${rowTitle ? `\n📝 Row: ${rowTitle}` : ''}\n⏰ Time: ${time}\n\n_Open Aura to view details_`
         }
 
         // Send via Telegram API

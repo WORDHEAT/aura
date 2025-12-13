@@ -8,6 +8,7 @@ interface ScheduledReminder {
     title: string
     time: string // ISO string
     tableName?: string
+    rowTitle?: string
     userId?: string
 }
 
@@ -30,7 +31,7 @@ export const NotificationService = {
         }
     },
 
-    schedule: (title: string, time: Date, id?: string, options?: { tableName?: string; userId?: string }) => {
+    schedule: (title: string, time: Date, id?: string, options?: { tableName?: string; rowTitle?: string; userId?: string }) => {
         const now = new Date().getTime()
         const target = time.getTime()
         const delay = target - now
@@ -54,7 +55,8 @@ export const NotificationService = {
                             options.userId,
                             title,
                             options.tableName || 'Table',
-                            time
+                            time,
+                            options.rowTitle
                         )
                     } catch (err) {
                         console.error('Telegram notification failed:', err)
@@ -74,6 +76,7 @@ export const NotificationService = {
                 title, 
                 time: time.toISOString(),
                 tableName: options?.tableName,
+                rowTitle: options?.rowTitle,
                 userId: options?.userId
             })
             logger.log(`Reminder scheduled for ${time.toLocaleTimeString()}`)
@@ -125,7 +128,7 @@ export const NotificationService = {
                     reminder.title, 
                     new Date(reminder.time), 
                     reminder.id,
-                    { tableName: reminder.tableName, userId: reminder.userId }
+                    { tableName: reminder.tableName, rowTitle: reminder.rowTitle, userId: reminder.userId }
                 )
             } else {
                 // Remove expired reminders
