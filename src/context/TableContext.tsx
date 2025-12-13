@@ -498,6 +498,30 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         let hasErrors = false
         
         try {
+            // STEP 0: Sync profile workspaces first (workspaces reference them via FK)
+            const currentPWs = profileWorkspacesRef.current
+            for (let i = 0; i < currentPWs.length; i++) {
+                const pw = currentPWs[i]
+                try {
+                    await syncService.updateProfileWorkspace({
+                        id: pw.id,
+                        name: pw.name,
+                        isDefault: pw.isDefault || false
+                    }, i)
+                } catch {
+                    try {
+                        await syncService.createProfileWorkspace({
+                            id: pw.id,
+                            name: pw.name,
+                            isDefault: pw.isDefault || false
+                        }, i)
+                    } catch (err) {
+                        console.error('❌ Profile workspace sync failed:', pw.id, err)
+                    }
+                }
+            }
+            logger.log(`✅ Synced ${currentPWs.length} profile workspaces`)
+
             // Helper to update or create
             const upsertTable = async (workspaceId: string, table: TableItem, position: number) => {
                 try {
