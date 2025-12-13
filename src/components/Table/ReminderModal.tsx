@@ -81,7 +81,7 @@ export function ReminderModal({
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+        <div className="fixed inset-0 z-[50000] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
             <div className="bg-[#202020] border border-[#373737] rounded-t-2xl sm:rounded-lg shadow-2xl w-full sm:max-w-md max-h-[90vh] sm:max-h-[80vh] overflow-y-auto">
                 <div className="flex items-center justify-between px-4 sm:px-5 py-4 border-b border-[#373737] sticky top-0 bg-[#202020] z-10">
                     <h3 className="text-base font-semibold text-[#e3e3e3]">Set Reminder</h3>

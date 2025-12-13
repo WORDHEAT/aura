@@ -72,7 +72,7 @@ export function UserMenu({ onOpenSettings, onOpenProfile, onOpenAuth }: UserMenu
 
             {/* Dropdown Menu */}
             {isOpen && (
-                <div className="absolute right-0 top-full mt-2 w-64 bg-[#202020] border border-[#373737] rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+                <div className="absolute right-0 top-full mt-2 w-64 bg-[#202020] border border-[#373737] rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[9999]">
                     {/* User Info */}
                     <div className="px-4 py-3 border-b border-[#373737]">
                         <div className="flex items-center gap-3">
