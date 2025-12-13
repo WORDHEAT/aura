@@ -508,18 +508,99 @@ function App() {
           <div className="flex-1" />
           {/* Notifications */}
           {isAuthenticated && (
-            <button
-              onClick={() => setShowNotificationPanel(!showNotificationPanel)}
-              className="p-1.5 rounded text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors relative mr-1"
-              title="Notifications"
-            >
-              <Bell size={18} />
-              {teamNotifications.length > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                  {teamNotifications.length > 9 ? '9+' : teamNotifications.length}
-                </span>
+            <div className="relative mr-1">
+              <button
+                onClick={() => setShowNotificationPanel(!showNotificationPanel)}
+                className="p-1.5 rounded text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] transition-colors relative"
+                title="Notifications"
+              >
+                <Bell size={18} />
+                {teamNotifications.length > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                    {teamNotifications.length > 9 ? '9+' : teamNotifications.length}
+                  </span>
+                )}
+              </button>
+              {/* Mobile Notification Panel */}
+              {showNotificationPanel && (
+                <>
+                  <div className="fixed inset-0 z-[100] bg-black/50" onClick={() => setShowNotificationPanel(false)} />
+                  <div className="fixed inset-x-4 bottom-4 bg-[#1a1a1a] border border-[#373737] rounded-2xl shadow-2xl z-[101] overflow-hidden">
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-[#2a2a2a] bg-gradient-to-r from-[#202020] to-[#1a1a1a]">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-blue-500/10 rounded-lg">
+                          <Bell size={16} className="text-blue-400" />
+                        </div>
+                        <h3 className="text-sm font-semibold text-[#e3e3e3]">Notifications</h3>
+                        {teamNotifications.length > 0 && (
+                          <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] font-medium rounded-full">
+                            {teamNotifications.length} new
+                          </span>
+                        )}
+                      </div>
+                      {teamNotifications.length > 0 && (
+                        <button
+                          onClick={handleMarkAllRead}
+                          className="text-xs text-[#9b9b9b] hover:text-blue-400 transition-colors font-medium"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                    </div>
+                    {/* Notifications List */}
+                    <div className="max-h-[360px] overflow-y-auto">
+                      {teamNotifications.length === 0 ? (
+                        <div className="py-12 px-4 text-center">
+                          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#2a2a2a] flex items-center justify-center">
+                            <Bell size={20} className="text-[#555]" />
+                          </div>
+                          <p className="text-sm text-[#6b6b6b]">No notifications yet</p>
+                          <p className="text-xs text-[#555] mt-1">You'll see reminders here</p>
+                        </div>
+                      ) : (
+                        teamNotifications.map((notification, index) => (
+                          <div
+                            key={notification.id}
+                            className={`px-5 py-4 hover:bg-[#252525] transition-colors group ${
+                              index !== teamNotifications.length - 1 ? 'border-b border-[#2a2a2a]' : ''
+                            }`}
+                          >
+                            <div className="flex gap-3">
+                              <div className="flex-shrink-0 mt-0.5">
+                                <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center">
+                                  <Bell size={14} className="text-amber-400" />
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-[#e3e3e3] truncate">{notification.title}</p>
+                                <p className="text-xs text-[#9b9b9b] mt-0.5">
+                                  {notification.message || 'Reminder is due now'}
+                                </p>
+                                <p className="text-[10px] text-[#555] mt-2 flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                                  {new Date(notification.created_at).toLocaleString()}
+                                </p>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDismissNotification(notification.id)
+                                }}
+                                className="flex-shrink-0 p-1.5 rounded-lg text-[#555] hover:text-[#e3e3e3] hover:bg-[#333] transition-all"
+                                title="Dismiss"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
-            </button>
+            </div>
           )}
           <UserMenu 
             onOpenSettings={() => setIsSettingsOpen(true)} 

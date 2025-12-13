@@ -4,7 +4,7 @@ import { useSettings } from '../context/SettingsContext'
 import { format } from 'date-fns'
 
 // App version - imported from package.json
-const APP_VERSION = '1.4.3'
+const APP_VERSION = '1.4.4'
 
 // Check if running in Electron
 const isElectron = typeof window !== 'undefined' && window.navigator.userAgent.includes('Electron')
