@@ -169,6 +169,7 @@ export interface Database {
           position: number
           is_monospace: boolean
           word_wrap: boolean
+          spell_check: boolean
           created_at: string
           updated_at: string
         }
@@ -180,6 +181,7 @@ export interface Database {
           position?: number
           is_monospace?: boolean
           word_wrap?: boolean
+          spell_check?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -189,6 +191,7 @@ export interface Database {
           position?: number
           is_monospace?: boolean
           word_wrap?: boolean
+          spell_check?: boolean
           updated_at?: string
         }
       }

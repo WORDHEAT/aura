@@ -249,6 +249,7 @@ export class SyncService {
                 content: n.content,
                 isMonospace: n.is_monospace ?? false,
                 wordWrap: n.word_wrap ?? true,
+                spellCheck: n.spell_check ?? true,
                 createdAt: n.created_at,
                 updatedAt: n.updated_at
             }
@@ -410,7 +411,8 @@ export class SyncService {
                 content: note.content,
                 position,
                 is_monospace: note.isMonospace ?? false,
-                word_wrap: note.wordWrap ?? true
+                word_wrap: note.wordWrap ?? true,
+                spell_check: note.spellCheck ?? true
             }, { onConflict: 'id' })
 
         if (error) {
@@ -429,7 +431,8 @@ export class SyncService {
                 content: note.content,
                 position,
                 is_monospace: note.isMonospace ?? false,
-                word_wrap: note.wordWrap ?? true
+                word_wrap: note.wordWrap ?? true,
+                spell_check: note.spellCheck ?? true
             })
             .eq('id', note.id)
             .select('id, updated_at')
