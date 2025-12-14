@@ -137,6 +137,8 @@ export interface Database {
           rows: Json
           appearance: Json | null
           position: number
+          is_archived: boolean
+          archived_at: string | null
           created_at: string
           updated_at: string
         }
@@ -148,6 +150,8 @@ export interface Database {
           rows?: Json
           appearance?: Json | null
           position?: number
+          is_archived?: boolean
+          archived_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -157,6 +161,8 @@ export interface Database {
           rows?: Json
           appearance?: Json | null
           position?: number
+          is_archived?: boolean
+          archived_at?: string | null
           updated_at?: string
         }
       }
@@ -170,6 +176,8 @@ export interface Database {
           is_monospace: boolean
           word_wrap: boolean
           spell_check: boolean
+          is_archived: boolean
+          archived_at: string | null
           created_at: string
           updated_at: string
         }
@@ -182,6 +190,8 @@ export interface Database {
           is_monospace?: boolean
           word_wrap?: boolean
           spell_check?: boolean
+          is_archived?: boolean
+          archived_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -192,6 +202,8 @@ export interface Database {
           is_monospace?: boolean
           word_wrap?: boolean
           spell_check?: boolean
+          is_archived?: boolean
+          archived_at?: string | null
           updated_at?: string
         }
       }

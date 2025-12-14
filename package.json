@@ -1,7 +1,7 @@
 {
   "name": "aura",
   "private": true,
-  "version": "1.4.5",
+  "version": "1.4.6",
   "description": "Aura - Table and Note Management App",
   "author": "Aura Team",
   "main": "dist-electron/main.js",

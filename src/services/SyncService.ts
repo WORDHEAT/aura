@@ -34,6 +34,8 @@ export interface CloudTable {
     rows: Row[]
     appearance: TableItem['appearance']
     position: number
+    is_archived: boolean
+    archived_at: string | null
     created_at: string
     updated_at: string
 }
@@ -44,6 +46,11 @@ export interface CloudNote {
     name: string
     content: string
     position: number
+    is_monospace: boolean
+    word_wrap: boolean
+    spell_check: boolean
+    is_archived: boolean
+    archived_at: string | null
     created_at: string
     updated_at: string
 }
@@ -181,10 +188,17 @@ export class SyncService {
             memberWsList = (memberWsData || []) as CloudWorkspace[]
         }
 
-        const allCloudWorkspaces = [
-            ...(ownedWorkspaces || []),
-            ...memberWsList
-        ]
+        // Combine and deduplicate workspaces (user could be both owner AND member)
+        const workspaceMap = new Map<string, CloudWorkspace>()
+        for (const ws of (ownedWorkspaces || [])) {
+            workspaceMap.set(ws.id, ws)
+        }
+        for (const ws of memberWsList) {
+            if (!workspaceMap.has(ws.id)) {
+                workspaceMap.set(ws.id, ws)
+            }
+        }
+        const allCloudWorkspaces = Array.from(workspaceMap.values())
 
         // Fetch tables and notes for each workspace
         const workspaces: Workspace[] = []
@@ -221,6 +235,8 @@ export class SyncService {
                 columns: t.columns as TableItem['columns'],
                 rows: t.rows as TableItem['rows'],
                 appearance: t.appearance as TableItem['appearance'],
+                isArchived: t.is_archived ?? false,
+                archivedAt: t.archived_at || undefined,
                 createdAt: t.created_at,
                 updatedAt: t.updated_at
             }
@@ -250,6 +266,8 @@ export class SyncService {
                 isMonospace: n.is_monospace ?? false,
                 wordWrap: n.word_wrap ?? true,
                 spellCheck: n.spell_check ?? true,
+                isArchived: n.is_archived ?? false,
+                archivedAt: n.archived_at || undefined,
                 createdAt: n.created_at,
                 updatedAt: n.updated_at
             }
@@ -334,7 +352,9 @@ export class SyncService {
                 columns: table.columns as unknown,
                 rows: table.rows as unknown,
                 appearance: table.appearance as unknown,
-                position
+                position,
+                is_archived: table.isArchived ?? false,
+                archived_at: table.archivedAt || null
             }, { onConflict: 'id' })
 
         if (error) {
@@ -352,7 +372,9 @@ export class SyncService {
                 columns: table.columns as unknown,
                 rows: table.rows as unknown,
                 appearance: table.appearance as unknown,
-                position
+                position,
+                is_archived: table.isArchived ?? false,
+                archived_at: table.archivedAt || null
             })
             .eq('id', table.id)
             .select('id, updated_at')
@@ -412,7 +434,9 @@ export class SyncService {
                 position,
                 is_monospace: note.isMonospace ?? false,
                 word_wrap: note.wordWrap ?? true,
-                spell_check: note.spellCheck ?? true
+                spell_check: note.spellCheck ?? true,
+                is_archived: note.isArchived ?? false,
+                archived_at: note.archivedAt || null
             }, { onConflict: 'id' })
 
         if (error) {
@@ -432,7 +456,9 @@ export class SyncService {
                 position,
                 is_monospace: note.isMonospace ?? false,
                 word_wrap: note.wordWrap ?? true,
-                spell_check: note.spellCheck ?? true
+                spell_check: note.spellCheck ?? true,
+                is_archived: note.isArchived ?? false,
+                archived_at: note.archivedAt || null
             })
             .eq('id', note.id)
             .select('id, updated_at')

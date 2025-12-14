@@ -760,6 +760,12 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             }, 1000)
         }
 
+        // Build workspace IDs filter - use a placeholder UUID if empty to avoid invalid SQL
+        const workspaceIds = workspacesRef.current.map(ws => ws.id)
+        const workspaceFilter = workspaceIds.length > 0 
+            ? `workspace_id=in.(${workspaceIds.join(',')})` 
+            : `workspace_id=eq.00000000-0000-0000-0000-000000000000`
+
         // Subscribe to changes on workspaces, tables, and notes
         const channel = supabase
             .channel('workspace-sync')
@@ -781,7 +787,8 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 {
                     event: '*',
                     schema: 'public',
-                    table: 'tables'
+                    table: 'tables',
+                    filter: workspaceFilter
                 },
                 (payload) => {
                     logger.log('🔄 Realtime: table change detected', payload.eventType)
@@ -793,7 +800,8 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
                 {
                     event: '*',
                     schema: 'public',
-                    table: 'notes'
+                    table: 'notes',
+                    filter: workspaceFilter
                 },
                 (payload) => {
                     logger.log('🔄 Realtime: note change detected', payload.eventType)
@@ -875,36 +883,43 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
 
     const deleteProfileWorkspace = useCallback((id: string) => {
         // Don't delete the last profile workspace
-        if (profileWorkspaces.length <= 1) return
+        if (profileWorkspacesRef.current.length <= 1) return
         
-        // Also delete workspaces belonging to this profile
-        setWorkspaces(prev => prev.filter(ws => ws.profileWorkspaceId !== id))
+        // Track child workspaces for cloud deletion and get remaining profiles
+        const childWorkspaces = workspacesRef.current.filter(ws => ws.profileWorkspaceId === id)
+        const remainingProfiles = profileWorkspacesRef.current.filter(pw => pw.id !== id)
+        const remainingWorkspaces = workspacesRef.current.filter(ws => ws.profileWorkspaceId !== id)
         
-        setProfileWorkspaces(prev => prev.filter(pw => pw.id !== id))
-        
-        // Sync delete to cloud
+        // Sync deletions to cloud first
         if (isAuthenticated && user) {
+            // Delete child workspaces from cloud
+            childWorkspaces.forEach(ws => {
+                addPendingDelete('workspace', ws.id)
+            })
+            setPendingOpsCount(getPendingOps().length)
+            
+            // Delete profile workspace
             syncService.deleteProfileWorkspace(id).catch(console.error)
         }
         
+        // Update local state
+        setWorkspaces(remainingWorkspaces)
+        setProfileWorkspaces(remainingProfiles)
+        
         // If deleting current, switch to first available
-        if (id === currentProfileWorkspaceId) {
-            const remaining = profileWorkspaces.filter(pw => pw.id !== id)
-            if (remaining.length > 0) {
-                // Switch to the remaining profile and its workspaces
-                const nextProfileId = remaining[0].id
-                setCurrentProfileWorkspaceId(nextProfileId)
-                const nextProfileWs = workspaces.filter(ws => 
-                    ws.profileWorkspaceId === nextProfileId
-                )
-                if (nextProfileWs.length > 0) {
-                    setCurrentWorkspaceId(nextProfileWs[0].id)
-                    setCurrentTableId(nextProfileWs[0].tables[0]?.id || '')
-                    setSelectedTables(nextProfileWs[0].tables[0]?.id ? [nextProfileWs[0].tables[0].id] : [])
-                }
+        if (id === currentProfileWorkspaceId && remainingProfiles.length > 0) {
+            const nextProfileId = remainingProfiles[0].id
+            setCurrentProfileWorkspaceId(nextProfileId)
+            const nextProfileWs = remainingWorkspaces.filter(ws => 
+                ws.profileWorkspaceId === nextProfileId
+            )
+            if (nextProfileWs.length > 0) {
+                setCurrentWorkspaceId(nextProfileWs[0].id)
+                setCurrentTableId(nextProfileWs[0].tables[0]?.id || '')
+                setSelectedTables(nextProfileWs[0].tables[0]?.id ? [nextProfileWs[0].tables[0].id] : [])
             }
         }
-    }, [profileWorkspaces, currentProfileWorkspaceId, workspaces, isAuthenticated, user])
+    }, [currentProfileWorkspaceId, isAuthenticated, user])
 
     const renameProfileWorkspace = useCallback((id: string, name: string) => {
         setProfileWorkspaces(prev => {
