@@ -573,6 +573,13 @@ export class SyncService {
             return { success: false, error: 'User not found' }
         }
 
+        // Get workspace name for notification
+        const { data: workspace } = await supabase
+            .from('workspaces')
+            .select('name')
+            .eq('id', workspaceId)
+            .single()
+
         // Add as member
         const { error } = await supabase
             .from('workspace_members')
@@ -588,6 +595,21 @@ export class SyncService {
                 return { success: false, error: 'User is already a member' }
             }
             return { success: false, error: error.message }
+        }
+
+        // Create notification for invited user
+        try {
+            await supabase
+                .from('team_notifications')
+                .insert({
+                    user_id: profile.id,
+                    workspace_id: workspaceId,
+                    title: 'Workspace Invitation',
+                    message: `You have been invited to collaborate on "${workspace?.name || 'a workspace'}" as ${role}.`
+                })
+        } catch (notifError) {
+            console.error('Failed to create invitation notification:', notifError)
+            // Don't fail the invite if notification fails
         }
 
         return { success: true }
