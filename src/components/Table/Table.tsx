@@ -893,6 +893,7 @@ export function Table({ tableId, data, onUpdate, onColumnUpdate, isFiltered, app
                 }}
                 currentValue={reminderModal ? getVisibleRows(data.rows).find(r => r.row.id === reminderModal.rowId)?.row.cells[reminderModal.colId] : undefined}
                 tableName={getTableById(tableId)?.name}
+                rowTitle={reminderModal ? getVisibleRows(data.rows).find(r => r.row.id === reminderModal.rowId)?.row.cells[data.columns[0]?.id] : undefined}
                 tableId={tableId}
                 rowId={reminderModal?.rowId}
                 colId={reminderModal?.colId}

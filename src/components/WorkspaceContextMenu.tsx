@@ -71,7 +71,7 @@ export function WorkspaceContextMenu({
             {isOpen && (
                 <div 
                     ref={menuRef}
-                    className="absolute right-0 top-full mt-1 w-44 bg-[#252525] border border-[#373737] rounded-lg shadow-xl z-50 py-1 animate-in fade-in slide-in-from-top-2 duration-150"
+                    className="absolute right-0 top-full mt-1 w-44 bg-[#252525] border border-[#373737] rounded-lg shadow-xl z-[9999] py-1 animate-in fade-in slide-in-from-top-2 duration-150"
                 >
                     <button
                         onClick={() => handleAction(onAddTable)}

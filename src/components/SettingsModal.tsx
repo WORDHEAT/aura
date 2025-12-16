@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom'
 import { useSettings } from '../context/SettingsContext'
 import { format } from 'date-fns'
 
-// App version - update this when releasing new versions
-const APP_VERSION = '1.2.8'
+// App version - imported from package.json
+const APP_VERSION = '1.4.5'
 
 // Check if running in Electron
 const isElectron = typeof window !== 'undefined' && window.navigator.userAgent.includes('Electron')

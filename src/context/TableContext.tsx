@@ -2,8 +2,10 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import type { Column, Row } from '../components/Table/Table'
 import { useAuth } from './AuthContext'
 import { syncService } from '../services/SyncService'
+import { supabase } from '../lib/supabase'
 import { updateRowInTree, deleteRowFromTree, addSiblingToTree, addChildToRowInTree } from '../utils/treeUtils'
 import { logger } from '../lib/logger'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 // Pending operation for offline queue
 interface PendingOperation {
@@ -306,10 +308,13 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     // Simple flags for sync
     const initialSyncDoneRef = useRef(false)
     const isLoadingFromCloudRef = useRef(false)
+    const isPushingToCloudRef = useRef(false) // Prevent realtime sync during push
     
-    // Ref to always access latest workspaces
+    // Ref to always access latest workspaces and profile workspaces
     const workspacesRef = useRef(workspaces)
     workspacesRef.current = workspaces
+    const profileWorkspacesRef = useRef(profileWorkspaces)
+    profileWorkspacesRef.current = profileWorkspaces
 
     // Set user ID for sync service when auth changes
     useEffect(() => {
@@ -325,18 +330,60 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         setSyncError(null)
         
         try {
+            // Sync profile workspaces first
+            const cloudProfileWorkspaces = await syncService.fetchProfileWorkspaces()
+            const currentProfileWorkspaces = profileWorkspacesRef.current
+            
+            if (cloudProfileWorkspaces.length > 0) {
+                logger.log('📥 Loaded', cloudProfileWorkspaces.length, 'profile workspaces from cloud')
+                const mappedProfiles = cloudProfileWorkspaces.map(pw => ({
+                    id: pw.id,
+                    name: pw.name,
+                    isDefault: pw.is_default,
+                    createdAt: pw.created_at
+                }))
+                setProfileWorkspaces(mappedProfiles)
+                
+                // Set current profile if not set
+                if (!currentProfileWorkspaceId || !mappedProfiles.some(p => p.id === currentProfileWorkspaceId)) {
+                    const defaultProfile = mappedProfiles.find(p => p.isDefault) || mappedProfiles[0]
+                    setCurrentProfileWorkspaceId(defaultProfile.id)
+                }
+            } else if (currentProfileWorkspaces.length > 0) {
+                // Push local profile workspaces to cloud
+                logger.log('☁️ Cloud has no profile workspaces, pushing local...')
+                for (let i = 0; i < currentProfileWorkspaces.length; i++) {
+                    const pw = currentProfileWorkspaces[i]
+                    try {
+                        await syncService.createProfileWorkspace({
+                            id: pw.id,
+                            name: pw.name,
+                            isDefault: pw.isDefault || false
+                        }, i)
+                    } catch (err) {
+                        console.error('Error pushing profile workspace:', err)
+                    }
+                }
+            }
+            
+            // Now sync workspaces
             const cloudWorkspaces = await syncService.fetchWorkspaces()
             const currentWorkspaces = workspacesRef.current
             
             if (cloudWorkspaces.length > 0) {
                 logger.log('📥 Loaded', cloudWorkspaces.length, 'workspaces from cloud')
                 
-                // Preserve local expansion state only
+                // Get current profile ID for new workspaces
+                const profileIdForNew = currentProfileWorkspaceId || profileWorkspaces[0]?.id
+                
+                // Preserve local expansion state and profile assignment
                 const finalWorkspaces = cloudWorkspaces.map(cloudWs => {
                     const localWs = currentWorkspaces.find(ws => ws.id === cloudWs.id)
                     return {
                         ...cloudWs,
-                        isExpanded: localWs?.isExpanded ?? cloudWs.isExpanded
+                        isExpanded: localWs?.isExpanded ?? cloudWs.isExpanded,
+                        // Use cloud profile assignment if available, otherwise use local or default
+                        profileWorkspaceId: cloudWs.profileWorkspaceId || localWs?.profileWorkspaceId || profileIdForNew
                     }
                 })
                 
@@ -447,9 +494,34 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const pushToCloud = useCallback(async (workspacesToPush: Workspace[]): Promise<boolean> => {
         if (!isAuthenticated || !user) return false
         
+        isPushingToCloudRef.current = true
         let hasErrors = false
         
         try {
+            // STEP 0: Sync profile workspaces first (workspaces reference them via FK)
+            const currentPWs = profileWorkspacesRef.current
+            for (let i = 0; i < currentPWs.length; i++) {
+                const pw = currentPWs[i]
+                try {
+                    await syncService.updateProfileWorkspace({
+                        id: pw.id,
+                        name: pw.name,
+                        isDefault: pw.isDefault || false
+                    }, i)
+                } catch {
+                    try {
+                        await syncService.createProfileWorkspace({
+                            id: pw.id,
+                            name: pw.name,
+                            isDefault: pw.isDefault || false
+                        }, i)
+                    } catch (err) {
+                        console.error('❌ Profile workspace sync failed:', pw.id, err)
+                    }
+                }
+            }
+            logger.log(`✅ Synced ${currentPWs.length} profile workspaces`)
+
             // Helper to update or create
             const upsertTable = async (workspaceId: string, table: TableItem, position: number) => {
                 try {
@@ -579,6 +651,11 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             console.error('Push to cloud error:', error)
             setSyncError('Sync failed')
             return false
+        } finally {
+            // Reset flag after a short delay to ignore our own realtime events
+            setTimeout(() => {
+                isPushingToCloudRef.current = false
+            }, 2000)
         }
     }, [isAuthenticated, user])
 
@@ -640,6 +717,126 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         window.addEventListener('beforeunload', handleBeforeUnload)
         return () => window.removeEventListener('beforeunload', handleBeforeUnload)
     }, [isAuthenticated, user])
+
+    // Real-time subscription for cross-device sync
+    const realtimeChannelRef = useRef<RealtimeChannel | null>(null)
+    const realtimeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    
+    useEffect(() => {
+        if (!isAuthenticated || !user) {
+            // Cleanup subscription when logged out
+            if (realtimeChannelRef.current) {
+                supabase.removeChannel(realtimeChannelRef.current)
+                realtimeChannelRef.current = null
+            }
+            if (realtimeSyncTimeoutRef.current) {
+                clearTimeout(realtimeSyncTimeoutRef.current)
+            }
+            return
+        }
+
+        // Don't create duplicate subscriptions
+        if (realtimeChannelRef.current) return
+
+        // Debounced sync handler to batch rapid realtime events
+        const debouncedSync = () => {
+            if (isPushingToCloudRef.current || isLoadingFromCloudRef.current) {
+                logger.log('⏭️ Skipping realtime sync - local operation in progress')
+                return
+            }
+            
+            // Clear existing timeout
+            if (realtimeSyncTimeoutRef.current) {
+                clearTimeout(realtimeSyncTimeoutRef.current)
+            }
+            
+            // Debounce by 1 second to batch rapid changes
+            realtimeSyncTimeoutRef.current = setTimeout(() => {
+                logger.log('🔄 Syncing from realtime event...')
+                isLoadingFromCloudRef.current = true
+                syncWorkspaces().finally(() => {
+                    isLoadingFromCloudRef.current = false
+                })
+            }, 1000)
+        }
+
+        // Build workspace IDs filter - use a placeholder UUID if empty to avoid invalid SQL
+        const workspaceIds = workspacesRef.current.map(ws => ws.id)
+        const workspaceFilter = workspaceIds.length > 0 
+            ? `workspace_id=in.(${workspaceIds.join(',')})` 
+            : `workspace_id=eq.00000000-0000-0000-0000-000000000000`
+
+        // Subscribe to changes on workspaces, tables, and notes
+        const channel = supabase
+            .channel('workspace-sync')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'workspaces',
+                    filter: `owner_id=eq.${user.id}`
+                },
+                (payload) => {
+                    logger.log('🔄 Realtime: workspace change detected', payload.eventType)
+                    debouncedSync()
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'tables',
+                    filter: workspaceFilter
+                },
+                (payload) => {
+                    logger.log('🔄 Realtime: table change detected', payload.eventType)
+                    debouncedSync()
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'notes',
+                    filter: workspaceFilter
+                },
+                (payload) => {
+                    logger.log('🔄 Realtime: note change detected', payload.eventType)
+                    debouncedSync()
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'profile_workspaces',
+                    filter: `user_id=eq.${user.id}`
+                },
+                (payload) => {
+                    logger.log('🔄 Realtime: profile workspace change detected', payload.eventType)
+                    debouncedSync()
+                }
+            )
+            .subscribe((status) => {
+                logger.log('📡 Realtime subscription status:', status)
+            })
+
+        realtimeChannelRef.current = channel
+
+        return () => {
+            if (realtimeChannelRef.current) {
+                supabase.removeChannel(realtimeChannelRef.current)
+                realtimeChannelRef.current = null
+            }
+            if (realtimeSyncTimeoutRef.current) {
+                clearTimeout(realtimeSyncTimeoutRef.current)
+            }
+        }
+    }, [isAuthenticated, user, syncWorkspaces])
     
     // Save to localStorage
     useEffect(() => {
@@ -670,42 +867,78 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             name,
             createdAt: new Date().toISOString(),
         }
-        setProfileWorkspaces(prev => [...prev, newProfileWorkspace])
-    }, [])
+        setProfileWorkspaces(prev => {
+            const newList = [...prev, newProfileWorkspace]
+            // Sync to cloud
+            if (isAuthenticated && user) {
+                syncService.createProfileWorkspace({
+                    id: newProfileWorkspace.id,
+                    name: newProfileWorkspace.name,
+                    isDefault: false
+                }, newList.length - 1).catch(console.error)
+            }
+            return newList
+        })
+    }, [isAuthenticated, user])
 
     const deleteProfileWorkspace = useCallback((id: string) => {
         // Don't delete the last profile workspace
-        if (profileWorkspaces.length <= 1) return
+        if (profileWorkspacesRef.current.length <= 1) return
         
-        // Also delete workspaces belonging to this profile
-        setWorkspaces(prev => prev.filter(ws => ws.profileWorkspaceId !== id))
+        // Track child workspaces for cloud deletion and get remaining profiles
+        const childWorkspaces = workspacesRef.current.filter(ws => ws.profileWorkspaceId === id)
+        const remainingProfiles = profileWorkspacesRef.current.filter(pw => pw.id !== id)
+        const remainingWorkspaces = workspacesRef.current.filter(ws => ws.profileWorkspaceId !== id)
         
-        setProfileWorkspaces(prev => prev.filter(pw => pw.id !== id))
+        // Sync deletions to cloud first
+        if (isAuthenticated && user) {
+            // Delete child workspaces from cloud
+            childWorkspaces.forEach(ws => {
+                addPendingDelete('workspace', ws.id)
+            })
+            setPendingOpsCount(getPendingOps().length)
+            
+            // Delete profile workspace
+            syncService.deleteProfileWorkspace(id).catch(console.error)
+        }
+        
+        // Update local state
+        setWorkspaces(remainingWorkspaces)
+        setProfileWorkspaces(remainingProfiles)
         
         // If deleting current, switch to first available
-        if (id === currentProfileWorkspaceId) {
-            const remaining = profileWorkspaces.filter(pw => pw.id !== id)
-            if (remaining.length > 0) {
-                // Switch to the remaining profile and its workspaces
-                const nextProfileId = remaining[0].id
-                setCurrentProfileWorkspaceId(nextProfileId)
-                const nextProfileWs = workspaces.filter(ws => 
-                    ws.profileWorkspaceId === nextProfileId
-                )
-                if (nextProfileWs.length > 0) {
-                    setCurrentWorkspaceId(nextProfileWs[0].id)
-                    setCurrentTableId(nextProfileWs[0].tables[0]?.id || '')
-                    setSelectedTables(nextProfileWs[0].tables[0]?.id ? [nextProfileWs[0].tables[0].id] : [])
-                }
+        if (id === currentProfileWorkspaceId && remainingProfiles.length > 0) {
+            const nextProfileId = remainingProfiles[0].id
+            setCurrentProfileWorkspaceId(nextProfileId)
+            const nextProfileWs = remainingWorkspaces.filter(ws => 
+                ws.profileWorkspaceId === nextProfileId
+            )
+            if (nextProfileWs.length > 0) {
+                setCurrentWorkspaceId(nextProfileWs[0].id)
+                setCurrentTableId(nextProfileWs[0].tables[0]?.id || '')
+                setSelectedTables(nextProfileWs[0].tables[0]?.id ? [nextProfileWs[0].tables[0].id] : [])
             }
         }
-    }, [profileWorkspaces, currentProfileWorkspaceId, workspaces])
+    }, [currentProfileWorkspaceId, isAuthenticated, user])
 
     const renameProfileWorkspace = useCallback((id: string, name: string) => {
-        setProfileWorkspaces(prev => prev.map(pw => 
-            pw.id === id ? { ...pw, name } : pw
-        ))
-    }, [])
+        setProfileWorkspaces(prev => {
+            const updated = prev.map(pw => pw.id === id ? { ...pw, name } : pw)
+            // Sync to cloud
+            if (isAuthenticated && user) {
+                const pw = updated.find(p => p.id === id)
+                if (pw) {
+                    const position = updated.indexOf(pw)
+                    syncService.updateProfileWorkspace({
+                        id: pw.id,
+                        name: pw.name,
+                        isDefault: pw.isDefault || false
+                    }, position).catch(console.error)
+                }
+            }
+            return updated
+        })
+    }, [isAuthenticated, user])
 
     const switchProfileWorkspace = useCallback((id: string) => {
         setCurrentProfileWorkspaceId(id)
@@ -904,7 +1137,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             notes: [],
             profileWorkspaceId: currentProfileWorkspaceId // Assign to current profile
         }
-        setWorkspacesWithHistory([...workspaces, newWorkspace])
+        setWorkspacesWithHistory(prev => [...prev, newWorkspace])
         setCurrentWorkspaceId(newWorkspace.id)
     }
 
@@ -925,42 +1158,50 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             setPendingOpsCount(getPendingOps().length)
         }
         
-        const newWorkspaces = workspaces.filter(w => w.id !== id)
-        setWorkspacesWithHistory(newWorkspaces)
-        
-        // If current workspace was deleted, switch to first available in same profile
-        if (currentWorkspaceId === id) {
-            const remainingInProfile = newWorkspaces.filter(ws => 
-                ws.profileWorkspaceId === currentProfileWorkspaceId
-            )
-            const nextWs = remainingInProfile[0]
-            if (nextWs) {
-                setCurrentWorkspaceId(nextWs.id)
-                setCurrentTableId(nextWs.tables[0]?.id || '')
-                setSelectedTables([nextWs.tables[0]?.id || ''])
+        setWorkspacesWithHistory(prev => {
+            const newWorkspaces = prev.filter(w => w.id !== id)
+            
+            // If current workspace was deleted, switch to first available in same profile
+            if (currentWorkspaceId === id) {
+                const remainingInProfile = newWorkspaces.filter(ws => 
+                    ws.profileWorkspaceId === currentProfileWorkspaceId
+                )
+                const nextWs = remainingInProfile[0]
+                if (nextWs) {
+                    // Use setTimeout to avoid state update during render
+                    setTimeout(() => {
+                        setCurrentWorkspaceId(nextWs.id)
+                        setCurrentTableId(nextWs.tables[0]?.id || '')
+                        setSelectedTables([nextWs.tables[0]?.id || ''])
+                    }, 0)
+                }
             }
-        }
+            
+            return newWorkspaces
+        })
     }
 
     const renameWorkspace = (id: string, name: string) => {
         if (!name.trim()) return
-        setWorkspacesWithHistory(workspaces.map(w =>
+        setWorkspacesWithHistory(prev => prev.map(w =>
             w.id === id ? { ...w, name: name.trim() } : w
         ))
     }
 
     const toggleWorkspaceExpanded = (id: string) => {
-        setWorkspaces(workspaces.map(w =>
+        setWorkspaces(prev => prev.map(w =>
             w.id === id ? { ...w, isExpanded: !w.isExpanded } : w
         ))
     }
 
     const reorderWorkspaces = (reorderedWorkspaces: Workspace[]) => {
         // Preserve workspaces from other profiles, only reorder current profile's workspaces
-        const otherProfileWorkspaces = workspaces.filter(ws => 
-            ws.profileWorkspaceId !== currentProfileWorkspaceId
-        )
-        setWorkspacesWithHistory([...reorderedWorkspaces, ...otherProfileWorkspaces])
+        setWorkspacesWithHistory(prev => {
+            const otherProfileWorkspaces = prev.filter(ws => 
+                ws.profileWorkspaceId !== currentProfileWorkspaceId
+            )
+            return [...reorderedWorkspaces, ...otherProfileWorkspaces]
+        })
     }
 
     // ===== TABLE OPERATIONS WITHIN WORKSPACE =====
@@ -971,7 +1212,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             columns: [{ id: crypto.randomUUID(), title: 'Column 1', type: 'text' }],
             rows: [],
         }
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? { ...ws, tables: [...ws.tables, newTable], isExpanded: true }
                 : ws
@@ -1030,7 +1271,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             rows: sourceTable.rows.map(cloneRow),
         }
 
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? { ...ws, tables: [...ws.tables, duplicatedTable], isExpanded: true }
                 : ws
@@ -1045,7 +1286,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         if (!workspace) return
         
         // Archive instead of delete (soft delete)
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId 
                 ? { 
                     ...ws, 
@@ -1086,7 +1327,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     }
 
     const reorderTablesInWorkspace = (workspaceId: string, tableIds: string[]) => {
-        setWorkspacesWithHistory(workspaces.map(ws => {
+        setWorkspacesWithHistory(prev => prev.map(ws => {
             if (ws.id !== workspaceId) return ws
             // Reorder tables based on new order of IDs
             const reorderedTables = tableIds
@@ -1303,7 +1544,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             isMonospace: false,
             wordWrap: true,
         }
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? { ...ws, notes: [...ws.notes, newNote], isExpanded: true }
                 : ws
@@ -1328,7 +1569,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
             updatedAt: now,
         }
 
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? { ...ws, notes: [...ws.notes, duplicatedNote], isExpanded: true }
                 : ws
@@ -1343,7 +1584,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         if (!workspace) return
         
         // Archive instead of delete (soft delete)
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? { 
                     ...ws, 
@@ -1399,7 +1640,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     }
 
     const reorderNotesInWorkspace = (workspaceId: string, noteIds: string[]) => {
-        setWorkspacesWithHistory(workspaces.map(ws => {
+        setWorkspacesWithHistory(prev => prev.map(ws => {
             if (ws.id !== workspaceId) return ws
             const reorderedNotes = noteIds
                 .map(id => ws.notes.find(n => n.id === id))
@@ -1473,7 +1714,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     const getArchivedItems = useCallback(() => archivedItemsCache, [archivedItemsCache])
 
     const restoreTable = (workspaceId: string, tableId: string) => {
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? {
                     ...ws,
@@ -1488,7 +1729,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     }
 
     const restoreNote = (workspaceId: string, noteId: string) => {
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? {
                     ...ws,
@@ -1507,7 +1748,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         addPendingDelete('table', tableId, workspaceId)
         setPendingOpsCount(getPendingOps().length)
         
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? { ...ws, tables: ws.tables.filter(t => t.id !== tableId) }
                 : ws
@@ -1519,7 +1760,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         addPendingDelete('note', noteId, workspaceId)
         setPendingOpsCount(getPendingOps().length)
         
-        setWorkspacesWithHistory(workspaces.map(ws =>
+        setWorkspacesWithHistory(prev => prev.map(ws =>
             ws.id === workspaceId
                 ? { ...ws, notes: ws.notes.filter(n => n.id !== noteId) }
                 : ws
@@ -1539,7 +1780,7 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
         setPendingOpsCount(getPendingOps().length)
         
         // Remove all archived items
-        setWorkspacesWithHistory(workspaces.map(ws => ({
+        setWorkspacesWithHistory(prev => prev.map(ws => ({
             ...ws,
             tables: ws.tables.filter(t => !t.isArchived),
             notes: ws.notes.filter(n => !n.isArchived)

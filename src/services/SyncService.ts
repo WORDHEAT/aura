@@ -8,8 +8,19 @@ export interface CloudWorkspace {
     id: string
     name: string
     owner_id: string
+    profile_workspace_id: string | null
     visibility: WorkspaceVisibility
     is_expanded: boolean
+    position: number
+    created_at: string
+    updated_at: string
+}
+
+export interface CloudProfileWorkspace {
+    id: string
+    user_id: string
+    name: string
+    is_default: boolean
     position: number
     created_at: string
     updated_at: string
@@ -23,6 +34,8 @@ export interface CloudTable {
     rows: Row[]
     appearance: TableItem['appearance']
     position: number
+    is_archived: boolean
+    archived_at: string | null
     created_at: string
     updated_at: string
 }
@@ -33,6 +46,11 @@ export interface CloudNote {
     name: string
     content: string
     position: number
+    is_monospace: boolean
+    word_wrap: boolean
+    spell_check: boolean
+    is_archived: boolean
+    archived_at: string | null
     created_at: string
     updated_at: string
 }
@@ -65,6 +83,7 @@ const toLocalWorkspace = (
     // Extended cloud fields
     ownerId: cloudWs.owner_id,
     visibility: cloudWs.visibility,
+    profileWorkspaceId: cloudWs.profile_workspace_id || undefined,
     createdAt: cloudWs.created_at,
     updatedAt: cloudWs.updated_at
 })
@@ -74,6 +93,7 @@ const toCloudWorkspace = (ws: Workspace, ownerId: string, position: number): Omi
     id: ws.id,
     name: ws.name,
     owner_id: ownerId,
+    profile_workspace_id: ws.profileWorkspaceId || null,
     visibility: ws.visibility || 'private',
     is_expanded: ws.isExpanded !== false,
     position
@@ -168,10 +188,17 @@ export class SyncService {
             memberWsList = (memberWsData || []) as CloudWorkspace[]
         }
 
-        const allCloudWorkspaces = [
-            ...(ownedWorkspaces || []),
-            ...memberWsList
-        ]
+        // Combine and deduplicate workspaces (user could be both owner AND member)
+        const workspaceMap = new Map<string, CloudWorkspace>()
+        for (const ws of (ownedWorkspaces || [])) {
+            workspaceMap.set(ws.id, ws)
+        }
+        for (const ws of memberWsList) {
+            if (!workspaceMap.has(ws.id)) {
+                workspaceMap.set(ws.id, ws)
+            }
+        }
+        const allCloudWorkspaces = Array.from(workspaceMap.values())
 
         // Fetch tables and notes for each workspace
         const workspaces: Workspace[] = []
@@ -208,6 +235,8 @@ export class SyncService {
                 columns: t.columns as TableItem['columns'],
                 rows: t.rows as TableItem['rows'],
                 appearance: t.appearance as TableItem['appearance'],
+                isArchived: t.is_archived ?? false,
+                archivedAt: t.archived_at || undefined,
                 createdAt: t.created_at,
                 updatedAt: t.updated_at
             }
@@ -236,6 +265,9 @@ export class SyncService {
                 content: n.content,
                 isMonospace: n.is_monospace ?? false,
                 wordWrap: n.word_wrap ?? true,
+                spellCheck: n.spell_check ?? true,
+                isArchived: n.is_archived ?? false,
+                archivedAt: n.archived_at || undefined,
                 createdAt: n.created_at,
                 updatedAt: n.updated_at
             }
@@ -264,6 +296,7 @@ export class SyncService {
                 name: workspace.name,
                 is_expanded: workspace.isExpanded !== false,
                 visibility: workspace.visibility || 'private',
+                profile_workspace_id: workspace.profileWorkspaceId || null,
                 position
             })
             .eq('id', workspace.id)
@@ -319,7 +352,9 @@ export class SyncService {
                 columns: table.columns as unknown,
                 rows: table.rows as unknown,
                 appearance: table.appearance as unknown,
-                position
+                position,
+                is_archived: table.isArchived ?? false,
+                archived_at: table.archivedAt || null
             }, { onConflict: 'id' })
 
         if (error) {
@@ -337,7 +372,9 @@ export class SyncService {
                 columns: table.columns as unknown,
                 rows: table.rows as unknown,
                 appearance: table.appearance as unknown,
-                position
+                position,
+                is_archived: table.isArchived ?? false,
+                archived_at: table.archivedAt || null
             })
             .eq('id', table.id)
             .select('id, updated_at')
@@ -396,7 +433,10 @@ export class SyncService {
                 content: note.content,
                 position,
                 is_monospace: note.isMonospace ?? false,
-                word_wrap: note.wordWrap ?? true
+                word_wrap: note.wordWrap ?? true,
+                spell_check: note.spellCheck ?? true,
+                is_archived: note.isArchived ?? false,
+                archived_at: note.archivedAt || null
             }, { onConflict: 'id' })
 
         if (error) {
@@ -415,7 +455,10 @@ export class SyncService {
                 content: note.content,
                 position,
                 is_monospace: note.isMonospace ?? false,
-                word_wrap: note.wordWrap ?? true
+                word_wrap: note.wordWrap ?? true,
+                spell_check: note.spellCheck ?? true,
+                is_archived: note.isArchived ?? false,
+                archived_at: note.archivedAt || null
             })
             .eq('id', note.id)
             .select('id, updated_at')
@@ -530,6 +573,13 @@ export class SyncService {
             return { success: false, error: 'User not found' }
         }
 
+        // Get workspace name for notification
+        const { data: workspace } = await supabase
+            .from('workspaces')
+            .select('name')
+            .eq('id', workspaceId)
+            .single()
+
         // Add as member
         const { error } = await supabase
             .from('workspace_members')
@@ -545,6 +595,21 @@ export class SyncService {
                 return { success: false, error: 'User is already a member' }
             }
             return { success: false, error: error.message }
+        }
+
+        // Create notification for invited user
+        try {
+            await supabase
+                .from('team_notifications')
+                .insert({
+                    user_id: profile.id,
+                    workspace_id: workspaceId,
+                    title: 'Workspace Invitation',
+                    message: `You have been invited to collaborate on "${workspace?.name || 'a workspace'}" as ${role}.`
+                })
+        } catch (notifError) {
+            console.error('Failed to create invitation notification:', notifError)
+            // Don't fail the invite if notification fails
         }
 
         return { success: true }
@@ -719,6 +784,103 @@ export class SyncService {
             workspaceId: data.workspace_id,
             allowEdit: data.allow_edit
         }
+    }
+
+    // ============ PROFILE WORKSPACES ============
+
+    async fetchProfileWorkspaces(): Promise<CloudProfileWorkspace[]> {
+        if (!this.userId) return []
+
+        const { data, error } = await supabase
+            .from('profile_workspaces')
+            .select('*')
+            .eq('user_id', this.userId)
+            .order('position', { ascending: true })
+
+        if (error) {
+            console.error('Error fetching profile workspaces:', error)
+            return []
+        }
+
+        return data || []
+    }
+
+    async createProfileWorkspace(profileWorkspace: { id: string; name: string; isDefault: boolean }, position: number): Promise<void> {
+        if (!this.userId) throw new Error('Not authenticated')
+
+        const { error } = await supabase
+            .from('profile_workspaces')
+            .insert({
+                id: profileWorkspace.id,
+                user_id: this.userId,
+                name: profileWorkspace.name,
+                is_default: profileWorkspace.isDefault,
+                position
+            })
+
+        if (error) throw error
+        logger.log('✅ Profile workspace created:', profileWorkspace.id)
+    }
+
+    async updateProfileWorkspace(profileWorkspace: { id: string; name: string; isDefault: boolean }, position: number): Promise<void> {
+        if (!this.userId) throw new Error('Not authenticated')
+
+        const { error } = await supabase
+            .from('profile_workspaces')
+            .update({
+                name: profileWorkspace.name,
+                is_default: profileWorkspace.isDefault,
+                position
+            })
+            .eq('id', profileWorkspace.id)
+            .eq('user_id', this.userId)
+
+        if (error) throw error
+        logger.log('✅ Profile workspace updated:', profileWorkspace.id)
+    }
+
+    async deleteProfileWorkspace(id: string): Promise<void> {
+        if (!this.userId) throw new Error('Not authenticated')
+
+        const { error } = await supabase
+            .from('profile_workspaces')
+            .delete()
+            .eq('id', id)
+            .eq('user_id', this.userId)
+
+        if (error) throw error
+        logger.log('🗑️ Profile workspace deleted:', id)
+    }
+
+    // ============ USER SETTINGS ============
+
+    async fetchSettings(): Promise<Record<string, unknown> | null> {
+        if (!this.userId) return null
+
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('settings')
+            .eq('id', this.userId)
+            .single()
+
+        if (error) {
+            console.error('Error fetching settings:', error)
+            return null
+        }
+
+        return data?.settings || {}
+    }
+
+    async updateSettings(settings: Record<string, unknown>): Promise<void> {
+        if (!this.userId) throw new Error('Not authenticated')
+
+        const { error } = await supabase
+            .from('profiles')
+            .update({ settings })
+            .eq('id', this.userId)
+
+        if (error) throw error
+        logger.log('✅ Settings synced to cloud')
     }
 }
 

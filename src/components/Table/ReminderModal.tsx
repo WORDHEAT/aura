@@ -1,4 +1,4 @@
-import { X, Bell, Users } from 'lucide-react'
+import { X, Bell, Users, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { NotificationService } from '../../services/NotificationService'
 import { TeamNotificationService } from '../../services/TeamNotificationService'
@@ -9,6 +9,7 @@ interface ReminderModalProps {
     onSave: (date: string) => void
     currentValue?: string
     tableName?: string
+    rowTitle?: string
     tableId?: string
     rowId?: string
     colId?: string
@@ -23,7 +24,8 @@ export function ReminderModal({
     onClose, 
     onSave, 
     currentValue, 
-    tableName, 
+    tableName,
+    rowTitle,
     tableId,
     rowId,
     colId,
@@ -69,9 +71,10 @@ export function ReminderModal({
                     })
                 }
                 
-                // Also schedule local notification for current user
+                // Schedule local notification and Telegram for current user
                 NotificationService.schedule(title, reminderDate, undefined, {
                     tableName,
+                    rowTitle,
                     userId
                 })
             }
@@ -81,7 +84,7 @@ export function ReminderModal({
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+        <div className="fixed inset-0 z-[50000] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
             <div className="bg-[#202020] border border-[#373737] rounded-t-2xl sm:rounded-lg shadow-2xl w-full sm:max-w-md max-h-[90vh] sm:max-h-[80vh] overflow-y-auto">
                 <div className="flex items-center justify-between px-4 sm:px-5 py-4 border-b border-[#373737] sticky top-0 bg-[#202020] z-10">
                     <h3 className="text-base font-semibold text-[#e3e3e3]">Set Reminder</h3>
@@ -124,21 +127,38 @@ export function ReminderModal({
                     </div>
                 </div>
 
-                <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 px-4 sm:px-5 py-4 border-t border-[#373737] sticky bottom-0 bg-[#202020]">
-                    <button
-                        onClick={onClose}
-                        disabled={isSaving}
-                        className="px-4 py-3 sm:py-2 text-sm font-medium text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] rounded-md transition-colors disabled:opacity-50"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className="px-4 py-3 sm:py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors disabled:opacity-50"
-                    >
-                        {isSaving ? 'Saving...' : 'Save Reminder'}
-                    </button>
+                <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2 px-4 sm:px-5 py-4 border-t border-[#373737] sticky bottom-0 bg-[#202020]">
+                    {currentValue ? (
+                        <button
+                            onClick={() => {
+                                onSave('')
+                                onClose()
+                            }}
+                            disabled={isSaving}
+                            className="flex items-center justify-center gap-2 px-4 py-3 sm:py-2 text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-md transition-colors disabled:opacity-50"
+                        >
+                            <Trash2 size={16} />
+                            Clear Reminder
+                        </button>
+                    ) : (
+                        <div />
+                    )}
+                    <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2">
+                        <button
+                            onClick={onClose}
+                            disabled={isSaving}
+                            className="px-4 py-3 sm:py-2 text-sm font-medium text-[#9b9b9b] hover:text-[#e3e3e3] hover:bg-[#2a2a2a] rounded-md transition-colors disabled:opacity-50"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            disabled={isSaving}
+                            className="px-4 py-3 sm:py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors disabled:opacity-50"
+                        >
+                            {isSaving ? 'Saving...' : 'Save Reminder'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

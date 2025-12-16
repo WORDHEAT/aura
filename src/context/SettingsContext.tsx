@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { syncService } from '../services/SyncService'
+import { useAuth } from './AuthContext'
 
 export interface AppSettings {
     dateFormat: string
@@ -16,6 +18,7 @@ export interface AppSettings {
 interface SettingsContextType {
     settings: AppSettings
     updateSettings: (newSettings: Partial<AppSettings>) => void
+    syncSettings: () => Promise<void>
 }
 
 const defaultSettings: AppSettings = {
@@ -34,6 +37,7 @@ const defaultSettings: AppSettings = {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined)
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
+    const { isAuthenticated, user } = useAuth()
     const [settings, setSettings] = useState<AppSettings>(() => {
         const saved = localStorage.getItem('aura-settings')
         if (saved) {
@@ -45,17 +49,59 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         }
         return defaultSettings
     })
+    
+    const isLoadingFromCloudRef = useRef(false)
+    const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+    // Sync settings from cloud on login
+    const syncSettings = useCallback(async () => {
+        if (!isAuthenticated || !user) return
+        
+        try {
+            const cloudSettings = await syncService.fetchSettings()
+            if (cloudSettings && Object.keys(cloudSettings).length > 0) {
+                isLoadingFromCloudRef.current = true
+                setSettings(prev => ({ ...defaultSettings, ...prev, ...cloudSettings as Partial<AppSettings> }))
+            }
+        } catch (error) {
+            console.error('Failed to sync settings:', error)
+        }
+    }, [isAuthenticated, user])
+
+    // Load settings from cloud on auth change
+    useEffect(() => {
+        if (isAuthenticated && user) {
+            syncSettings()
+        }
+    }, [isAuthenticated, user, syncSettings])
+
+    // Save to localStorage and sync to cloud
     useEffect(() => {
         localStorage.setItem('aura-settings', JSON.stringify(settings))
-    }, [settings])
+        
+        // Skip cloud sync if we just loaded from cloud
+        if (isLoadingFromCloudRef.current) {
+            isLoadingFromCloudRef.current = false
+            return
+        }
+        
+        // Debounced sync to cloud
+        if (isAuthenticated && user) {
+            if (syncTimeoutRef.current) {
+                clearTimeout(syncTimeoutRef.current)
+            }
+            syncTimeoutRef.current = setTimeout(() => {
+                syncService.updateSettings(settings as unknown as Record<string, unknown>).catch(console.error)
+            }, 1000)
+        }
+    }, [settings, isAuthenticated, user])
 
-    const updateSettings = (newSettings: Partial<AppSettings>) => {
+    const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
         setSettings(prev => ({ ...prev, ...newSettings }))
-    }
+    }, [])
 
     return (
-        <SettingsContext.Provider value={{ settings, updateSettings }}>
+        <SettingsContext.Provider value={{ settings, updateSettings, syncSettings }}>
             {children}
         </SettingsContext.Provider>
     )
