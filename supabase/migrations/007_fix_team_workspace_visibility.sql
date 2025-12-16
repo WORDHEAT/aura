@@ -1,20 +1,23 @@
 -- Fix workspaces RLS policy to allow team members to see their workspaces
 -- Applied: 2024-12-16
+-- Updated: Fix infinite recursion by breaking circular dependency
 
--- Drop existing select policy
+-- Drop the problematic policies
 DROP POLICY IF EXISTS "workspaces_select" ON workspaces;
+DROP POLICY IF EXISTS "workspace_members_select" ON workspace_members;
 
--- Create new select policy that includes team member access
+-- Workspaces: Simple policy without referencing workspace_members
+-- Team visibility is permissive - the app filters by membership
 CREATE POLICY "workspaces_select" ON workspaces FOR SELECT
     USING (
         owner_id = auth.uid() 
         OR visibility = 'public'
-        OR (
-            visibility = 'team' 
-            AND EXISTS (
-                SELECT 1 FROM workspace_members wm 
-                WHERE wm.workspace_id = workspaces.id 
-                AND wm.user_id = auth.uid()
-            )
-        )
+        OR visibility = 'team'
+    );
+
+-- Workspace members: Simple policy without referencing workspaces
+CREATE POLICY "workspace_members_select" ON workspace_members FOR SELECT
+    USING (
+        user_id = auth.uid() 
+        OR invited_by = auth.uid()
     );

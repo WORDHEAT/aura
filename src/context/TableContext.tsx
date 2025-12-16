@@ -1024,9 +1024,13 @@ export function TableProvider({ children }: { children: React.ReactNode }) {
     }, [workspaces, profileWorkspaces])
 
     // Filter workspaces by current profile workspace
+    // Team workspaces where user is NOT the owner should always be shown (they belong to owner's profile)
     const filteredWorkspaces = useMemo(() => {
-        return workspacesWithProfile.filter(ws => ws.profileWorkspaceId === currentProfileWorkspaceId)
-    }, [workspacesWithProfile, currentProfileWorkspaceId])
+        return workspacesWithProfile.filter(ws => 
+            ws.profileWorkspaceId === currentProfileWorkspaceId ||
+            (ws.visibility === 'team' && ws.ownerId !== user?.id)
+        )
+    }, [workspacesWithProfile, currentProfileWorkspaceId, user?.id])
 
     // Memoize derived values for performance
     const currentWorkspace = useMemo(() => 
